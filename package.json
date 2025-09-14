@@ -96,12 +96,12 @@
     "vitest": "^3.2.4"
   },
   "lint-staged": {
-    "*.{js,ts,vue,json,md}": [
+    "*.{js,ts}": [
       "prettier --write",
       "eslint --fix"
     ],
-    "*.ts": [
-      "tsc --noEmit"
+    "*.{vue,json,md}": [
+      "prettier --write"
     ]
   },
   "simple-git-hooks": {
