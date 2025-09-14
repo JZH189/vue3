@@ -1,10 +1,14 @@
 import { type UserConfig, defineConfig } from 'vite'
 import { URL, fileURLToPath } from 'node:url'
-
-// Vue 3 源码调试配置
-const __dirname = fileURLToPath(new URL('.', import.meta.url))
+import vue from '@vitejs/plugin-vue'
 
 const config: UserConfig = {
+  plugins: [
+    // Vue 插件配置，支持源码调试
+    vue({
+      include: [/\.vue$/, /\.md$/],
+    }),
+  ],
   define: {
     __DEV__: true,
     __GLOBAL__: false,
@@ -54,14 +58,9 @@ const config: UserConfig = {
     },
   },
   optimizeDeps: {
-    // 允许预构建 babel 相关依赖，避免模块解析错误
-    include: [
-      '@babel/parser',
-      '@babel/types',
-      'estree-walker',
-      'entities/lib/decode.js',
-    ],
-    // 仅对源码模块禁用预构建
+    // 允许预构建必要的依赖
+    include: ['@babel/parser', '@babel/types', 'estree-walker'],
+    // 禁用所有Vue源码模块的预构建，让它们使用别名解析
     exclude: [
       'vue',
       '@vue/shared',
@@ -75,15 +74,21 @@ const config: UserConfig = {
     ],
   },
   esbuild: {
-    // 保留调试信息
+    // 保留调试信息和源码映射
     keepNames: true,
     target: 'esnext',
+    sourcemap: true,
   },
   build: {
     // 保持原始模块结构，便于调试
+    sourcemap: true,
     rollupOptions: {
       external: [],
     },
+  },
+  css: {
+    // 启用CSS sourcemap
+    devSourcemap: true,
   },
   server: {
     // 开发服务器配置
@@ -91,6 +96,8 @@ const config: UserConfig = {
       // 允许访问工作区外的文件
       allow: ['..'],
     },
+    // 启用sourcemap
+    sourcemapIgnoreList: false,
   },
 }
 

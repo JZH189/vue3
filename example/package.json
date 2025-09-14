@@ -1,5 +1,6 @@
 {
-  "name": "vue3-example-todo",
+  "name": "vue3-source-debug-example",
+  "description": "Vue 3 源码调试示例 - 直接在TypeScript源码中调试",
   "private": true,
   "version": "1.0.0",
   "type": "module",
