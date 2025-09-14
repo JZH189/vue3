@@ -180,6 +180,21 @@ importers:
         specifier: ^3.2.4
         version: 3.2.4(@types/node@22.17.2)(jsdom@26.1.0)(sass@1.90.0)
 
+  example:
+    devDependencies:
+      '@vitejs/plugin-vue':
+        specifier: 'catalog:'
+        version: 6.0.1(vite@5.4.15(@types/node@22.17.2)(sass@1.90.0))(vue@packages+vue)
+      typescript:
+        specifier: ~5.6.2
+        version: 5.6.3
+      vite:
+        specifier: 'catalog:'
+        version: 5.4.15(@types/node@22.17.2)(sass@1.90.0)
+      vue:
+        specifier: workspace:*
+        version: link:../packages/vue
+
   packages-private/dts-built-test:
     dependencies:
       '@vue/reactivity':

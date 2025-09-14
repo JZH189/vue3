@@ -1,6 +1,7 @@
 packages:
   - 'packages/*'
   - 'packages-private/*'
+  - 'example'
 
 catalog:
   '@babel/parser': ^7.28.3

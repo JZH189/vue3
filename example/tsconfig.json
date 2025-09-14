@@ -1,0 +1,12 @@
+{
+  "extends": "../tsconfig.json",
+  "compilerOptions": {
+    "isolatedModules": true,
+    "allowImportingTsExtensions": true,
+    "noEmit": true,
+    "jsx": "preserve",
+    "types": ["vite/client"],
+    "skipLibCheck": true
+  },
+  "include": ["src/**/*", "*.ts", "*.vue", "../packages/*/src/**/*"]
+}
