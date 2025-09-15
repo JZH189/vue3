@@ -84,7 +84,7 @@ export type Reactive<T> = UnwrapNestedRefs<T> &
  * ```js
  * const obj = reactive({ count: 0 })
  * ```
- *
+ *T extends object 用于泛型约束，用于指示T必须为object类型
  * @param target - The source object.
  * @see {@link https://vuejs.org/api/reactivity-core.html#reactive}
  */
@@ -289,10 +289,9 @@ function createReactiveObject(
   if (existingProxy) {
     return existingProxy
   }
-  const proxy = new Proxy(
-    target,
-    targetType === TargetType.COLLECTION ? collectionHandlers : baseHandlers,
-  )
+  const handler =
+    targetType === TargetType.COLLECTION ? collectionHandlers : baseHandlers
+  const proxy = new Proxy(target, handler)
   proxyMap.set(target, proxy)
   return proxy
 }

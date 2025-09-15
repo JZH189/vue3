@@ -49,18 +49,11 @@
         :key="todo.id"
         :class="['todo-item', { completed: todo.completed }]"
       >
-        <input
-          type="checkbox"
-          v-model="todo.completed"
-          class="todo-checkbox"
-        />
+        <input type="checkbox" v-model="todo.completed" class="todo-checkbox" />
         <span :class="['todo-text', { completed: todo.completed }]">
           {{ todo.text }}
         </span>
-        <button
-          @click="deleteTodo(todo.id)"
-          class="todo-delete-btn"
-        >
+        <button @click="deleteTodo(todo.id)" class="todo-delete-btn">
           删除
         </button>
       </div>
@@ -76,7 +69,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch } from 'vue'
+import { ref, computed, watch, reactive, toRaw } from 'vue'
 
 // 类型定义
 interface Todo {
@@ -87,6 +80,10 @@ interface Todo {
 }
 
 // 响应式数据
+const test = reactive({ test: 'test' })
+// const rawTest = toRaw(test)
+const test1 = reactive(test)
+console.log('test1:', test1)
 const newTodo = ref('')
 const todos = ref<Todo[]>([])
 const currentFilter = ref<'all' | 'active' | 'completed'>('all')
@@ -95,13 +92,13 @@ const currentFilter = ref<'all' | 'active' | 'completed'>('all')
 const filters = [
   { key: 'all' as const, label: '全部' },
   { key: 'active' as const, label: '进行中' },
-  { key: 'completed' as const, label: '已完成' }
+  { key: 'completed' as const, label: '已完成' },
 ]
 
 // 计算属性 - 这里是调试响应式系统的好地方
 const filteredTodos = computed(() => {
   console.log('计算属性 filteredTodos 被重新计算')
-  
+
   switch (currentFilter.value) {
     case 'active':
       return todos.value.filter(todo => !todo.completed)
@@ -123,14 +120,14 @@ const addTodo = () => {
   if (!text) return
 
   console.log('添加新的待办事项:', text)
-  
+
   const todo: Todo = {
     id: Date.now(),
     text,
     completed: false,
-    createdAt: new Date()
+    createdAt: new Date(),
   }
-  
+
   todos.value.push(todo)
   newTodo.value = ''
 }
@@ -144,13 +141,17 @@ const deleteTodo = (id: number) => {
 }
 
 // 监听器 - 调试响应式系统的另一个好地方
-watch(todos, (newTodos) => {
-  console.log('todos 数组发生变化:', newTodos)
-  // 这里可以设置断点来观察响应式系统如何工作
-  localStorage.setItem('vue3-todos', JSON.stringify(newTodos))
-}, { deep: true })
+watch(
+  todos,
+  newTodos => {
+    console.log('todos 数组发生变化:', newTodos)
+    // 这里可以设置断点来观察响应式系统如何工作
+    localStorage.setItem('vue3-todos', JSON.stringify(newTodos))
+  },
+  { deep: true },
+)
 
-watch(currentFilter, (newFilter) => {
+watch(currentFilter, newFilter => {
   console.log('筛选器变化:', newFilter)
 })
 
@@ -165,7 +166,7 @@ const initTodos = () => {
   } catch (error) {
     console.error('加载本地数据失败:', error)
   }
-  
+
   // 如果没有数据，添加一些示例数据
   if (todos.value.length === 0) {
     todos.value = [
@@ -173,20 +174,20 @@ const initTodos = () => {
         id: 1,
         text: '学习 Vue 3 Composition API',
         completed: false,
-        createdAt: new Date()
+        createdAt: new Date(),
       },
       {
         id: 2,
         text: '调试 Vue 3 响应式系统源码',
         completed: false,
-        createdAt: new Date()
+        createdAt: new Date(),
       },
       {
         id: 3,
         text: '理解虚拟 DOM 工作原理',
         completed: true,
-        createdAt: new Date()
-      }
+        createdAt: new Date(),
+      },
     ]
   }
 }
@@ -196,5 +197,8 @@ initTodos()
 
 // 调试信息
 console.log('App.vue 组件已加载')
-console.log('当前 Vue 版本:', import.meta.env.DEV ? '开发版本(源码)' : '生产版本')
+console.log(
+  '当前 Vue 版本:',
+  import.meta.env.DEV ? '开发版本(源码)' : '生产版本',
+)
 </script>

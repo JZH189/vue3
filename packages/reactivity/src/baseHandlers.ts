@@ -64,6 +64,24 @@ class BaseReactiveHandler implements ProxyHandler<Target> {
     } else if (key === ReactiveFlags.IS_SHALLOW) {
       return isShallow
     } else if (key === ReactiveFlags.RAW) {
+      //分支 1：验证 receiver 是否是 target 的正确代理对象，从对应的 Map 中获取 target 的代理对象
+      //分支 2：原型链验证  Object.getPrototypeOf(target) === Object.getPrototypeOf(receiver)，处理用户自定义代理的情况
+      //场景：当用户创建了一个代理，这个代理的目标是 Vue 的响应式代理时逻辑：比较 target（原始对象）和 receiver（可能是用户代理）的原型
+      // 如果原型相同，说明 receiver 是基于 target 创建的合法代理
+      /**
+       * 2. 安全性考虑
+       * // 假设的攻击场景
+          const obj = { secret: 'important data' }
+          const reactiveObj = reactive(obj)
+
+          // 恶意代码尝试通过错误的 receiver 获取原始对象
+          const maliciousProxy = new Proxy({}, {
+            get(target, key) {
+              // 尝试通过 ReactiveFlags.RAW 获取原始对象
+              return reactiveObj[ReactiveFlags.RAW] // 这会被阻止
+            }
+          })
+       */
       if (
         receiver ===
           (isReadonly

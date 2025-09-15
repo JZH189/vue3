@@ -1,5 +1,31 @@
 # Vue.js 核心项目详细分析文档
 
+## vue2 对比 vue3 的响应式实现api
+
+# Proxy vs Object.defineProperty 对比
+
+| 特性                        | Object.defineProperty                             | Proxy                                                              |
+| --------------------------- | ------------------------------------------------- | ------------------------------------------------------------------ |
+| **拦截粒度**                | 只能拦截某个 **已存在的属性** 的 `get`/`set`      | 可以拦截对象的 **所有操作**（读写、删除、`in`、`new`、函数调用等） |
+| **是否能监听新增/删除属性** | ❌ 不能，新增/删除属性不会触发                    | ✅ 可以通过 `set` / `deleteProperty` 捕获                          |
+| **是否支持数组下标变化**    | ❌ 不支持，修改数组 `length` 或新增索引不会被监听 | ✅ 支持，数组的任何变化都能捕获                                    |
+| **能否代理整个对象**        | 需要遍历对象属性，一个个 `defineProperty`         | 一次性代理整个对象                                                 |
+| **返回值**                  | 修改的是对象本身                                  | 返回一个代理对象（原对象仍可被直接访问）                           |
+| **元编程能力**              | 功能有限                                          | 功能强大，能代理函数调用、构造函数、`Object.keys()` 等             |
+| **性能**                    | Vue2 的核心方案，但需要递归遍历对象，性能较差     | Vue3 核心方案，按需拦截，性能更优                                  |
+| **适用场景**                | 老版本浏览器（IE11+）兼容性好                     | 现代浏览器环境（不支持 IE）                                        |
+
+---
+
+## 为什么 Vue2 用 `Object.defineProperty`，Vue3 改用 `Proxy`？
+
+- Vue2 发布时（2014），`Proxy` **兼容性太差**，无法用。
+- `Object.defineProperty` 只能劫持已存在的属性，所以 Vue2 对数据要 **深度遍历递归**，新加属性还要用 `Vue.set()` 手动触发。
+- Vue3 发布时（2020+），主流环境已经支持 `Proxy`，于是改用它实现响应式系统：
+  - 能拦截所有操作
+  - 支持动态属性
+  - 不需要递归遍历
+
 ## 项目概览
 
 这是**Vue.js 3**的核心代码库，版本为`3.5.21`。Vue.js 是一个渐进式 JavaScript 框架，用于构建现代 Web 用户界面。
@@ -92,27 +118,27 @@ core-main/
 
 ```javascript
 const outputConfigs = {
-  "esm-bundler": {
+  'esm-bundler': {
     // 供打包工具使用的ESM格式
-    file: "dist/vue.esm-bundler.js",
-    format: "es",
+    file: 'dist/vue.esm-bundler.js',
+    format: 'es',
   },
-  "esm-browser": {
+  'esm-browser': {
     // 浏览器直接使用的ESM格式
-    file: "dist/vue.esm-browser.js",
-    format: "es",
+    file: 'dist/vue.esm-browser.js',
+    format: 'es',
   },
   cjs: {
     // CommonJS格式
-    file: "dist/vue.cjs.js",
-    format: "cjs",
+    file: 'dist/vue.cjs.js',
+    format: 'cjs',
   },
   global: {
     // 全局变量格式
-    file: "dist/vue.global.js",
-    format: "iife",
+    file: 'dist/vue.global.js',
+    format: 'iife',
   },
-};
+}
 ```
 
 ## 核心技术实现
@@ -130,7 +156,7 @@ export {
   computed, // 计算属性
   watch, // 监听器
   watchEffect, // 副作用监听器
-};
+}
 
 // 高级API
 export {
@@ -140,7 +166,7 @@ export {
   shallowReactive, // 浅层响应式
   markRaw, // 标记为非响应式
   toRaw, // 获取原始对象
-};
+}
 
 // 工具函数
 export {
@@ -151,7 +177,7 @@ export {
   isReactive, // 判断是否为响应式
   isReadonly, // 判断是否为只读
   isProxy, // 判断是否为代理
-};
+}
 ```
 
 **核心特性**：
@@ -176,7 +202,7 @@ export {
   useModel, // 使用模型
   useTemplateRef, // 使用模板引用
   useId, // 使用唯一ID
-};
+}
 
 // 生命周期钩子
 export {
@@ -191,14 +217,14 @@ export {
   onRenderTracked, // 渲染追踪
   onRenderTriggered, // 渲染触发
   onErrorCaptured, // 错误捕获
-};
+}
 
 // 依赖注入
 export {
   provide, // 提供依赖
   inject, // 注入依赖
   hasInjectionContext, // 检查注入上下文
-};
+}
 ```
 
 ### 3. 编译器系统
@@ -240,7 +266,7 @@ export {
   Text, // 文本节点
   Comment, // 注释节点
   Static, // 静态节点
-};
+}
 
 // 渲染函数
 export {
@@ -248,7 +274,7 @@ export {
   render, // 渲染函数
   createRenderer, // 创建渲染器
   createHydrationRenderer, // 创建水合渲染器
-};
+}
 ```
 
 **优化特性**：
@@ -272,7 +298,7 @@ export {
   BaseTransition, // 基础过渡组件
   Transition, // 过渡组件
   TransitionGroup, // 过渡组列表组件
-};
+}
 ```
 
 ## 开发工作流
@@ -321,22 +347,22 @@ export default defineConfig({
   test: {
     projects: [
       {
-        name: "unit", // 单元测试
-        exclude: ["**/e2e/**", "**/{vue,vue-compat,runtime-dom}/**"],
+        name: 'unit', // 单元测试
+        exclude: ['**/e2e/**', '**/{vue,vue-compat,runtime-dom}/**'],
       },
       {
-        name: "unit-jsdom", // JSDOM环境测试
-        include: ["packages/{vue,vue-compat,runtime-dom}/**/*.{test,spec}.*"],
-        environment: "jsdom",
+        name: 'unit-jsdom', // JSDOM环境测试
+        include: ['packages/{vue,vue-compat,runtime-dom}/**/*.{test,spec}.*'],
+        environment: 'jsdom',
       },
       {
-        name: "e2e", // 端到端测试
-        environment: "jsdom",
-        include: ["packages/vue/__tests__/e2e/*.spec.ts"],
+        name: 'e2e', // 端到端测试
+        environment: 'jsdom',
+        include: ['packages/vue/__tests__/e2e/*.spec.ts'],
       },
     ],
   },
-});
+})
 ```
 
 #### 测试类型
@@ -396,16 +422,16 @@ export default defineConfig({
 ```yaml
 # pnpm-workspace.yaml
 packages:
-  - "packages/*" # 公开包
-  - "packages-private/*" # 私有包
+  - 'packages/*' # 公开包
+  - 'packages-private/*' # 私有包
 
 catalog: # 依赖版本目录
-  "@babel/parser": ^7.28.3
-  "@babel/types": ^7.28.2
-  "estree-walker": ^2.0.2
-  "magic-string": ^0.30.18
-  "source-map-js": ^1.2.1
-  "vite": ^5.4.15
+  '@babel/parser': ^7.28.3
+  '@babel/types': ^7.28.2
+  'estree-walker': ^2.0.2
+  'magic-string': ^0.30.18
+  'source-map-js': ^1.2.1
+  'vite': ^5.4.15
 ```
 
 ### 2. 版本管理
