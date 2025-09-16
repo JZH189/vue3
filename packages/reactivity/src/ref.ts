@@ -140,6 +140,7 @@ class RefImpl<T = any> {
       this[ReactiveFlags.IS_SHALLOW] ||
       isShallow(newValue) ||
       isReadonly(newValue)
+    //避免嵌套代理响应式对象
     newValue = useDirectValue ? newValue : toRaw(newValue)
     if (hasChanged(newValue, oldValue)) {
       this._rawValue = newValue
