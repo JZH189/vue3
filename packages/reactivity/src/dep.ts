@@ -179,6 +179,15 @@ export class Dep {
         // be invoked in original order here.
         for (let head = this.subsHead; head; head = head.nextSub) {
           if (head.sub.onTrigger && !(head.sub.flags & EffectFlags.NOTIFIED)) {
+            //只有当 effect 还没有被通知过时，才执行 onTrigger 钩子
+            // 避免在同一批次中重复触发 onTrigger
+            /**
+             * 为什么需要 NOTIFIED 标志？
+              这是 Vue 3 的批处理优化机制：
+              防止重复执行：在同一个响应式更新批次中，一个 effect 可能被多个依赖触发，但只应该执行一次
+              性能优化：避免不必要的重复计算和 DOM 更新
+              调试支持：确保 onTrigger 钩子在每个批次中只执行一次，提供准确的调试信息
+             */
             head.sub.onTrigger(
               extend(
                 {
@@ -346,6 +355,13 @@ export function trigger(
       })
     } else {
       // schedule runs for SET | ADD | DELETE
+      /**
+       *void 0 在 Vue 3 源码中的使用体现了：
+        代码的健壮性：确保获得真正的 undefined
+        性能考虑：代码压缩时更短
+        编程习惯：许多大型 JavaScript 库都采用这种写法
+        向后兼容：确保在各种环境下都能正常工作
+       */
       if (key !== void 0 || depsMap.has(void 0)) {
         run(depsMap.get(key))
       }
