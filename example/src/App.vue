@@ -80,10 +80,10 @@ interface Todo {
 }
 
 // 响应式数据
-// const test = reactive({ test: 'test' })
-// // const rawTest = toRaw(test)
-// const test1 = reactive(test)
-// console.log('test1:', test1)
+const test = reactive({ test: 'test' })
+// const rawTest = toRaw(test)
+const test1 = reactive(test)
+console.log('test1:', test1)
 const newTodo = ref('')
 const todos = ref<Todo[]>([])
 const currentFilter = ref<'all' | 'active' | 'completed'>('all')
