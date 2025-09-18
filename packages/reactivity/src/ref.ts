@@ -108,7 +108,8 @@ function createRef(rawValue: unknown, shallow: boolean) {
 class RefImpl<T = any> {
   _value: T
   private _rawValue: T
-
+  //Dependency" 的缩写，代表一个响应式数据源,功能是负责收集和管理订阅者（subscribers），
+  // 当数据变化时通知所有订阅者
   dep: Dep = new Dep()
 
   public readonly [ReactiveFlags.IS_REF] = true

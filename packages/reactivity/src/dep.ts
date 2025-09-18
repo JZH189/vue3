@@ -35,6 +35,9 @@ export class Link {
    * - During the run, a link's version is synced with the source dep on access
    * - After the run, links with version -1 (that were never used) are cleaned
    *   up
+   * 在每个效果运行之前，所有先前的DEP链接的版本都重置为-1
+   *  -在运行期间，链接的版本与访问的源dep同步
+   *  -运行后，清洁了与版本-1（从未使用过的）链接
    */
   version: number
 
@@ -65,56 +68,92 @@ export class Link {
  * @internal
  */
 export class Dep {
+  /**
+   * 版本号机制: 用于优化计算属性的重新计算
+   * 全局同步: 与全局版本号globalVersion协同工作
+   * 每次触发变化时版本号递增
+   * 优化效果 1:计算属性缓存: 避免不必要的重新计算
+   * 2:快速路径: 通过版本比较快速判断是否需要更新
+   */
   version = 0
   /**
    * Link between this dep and the current active effect
+   * 当前活跃链接: 指向当前正在建立或使用的Link实例
+   * 优化访问: 缓存最近使用的链接，避免重复创建
    */
   activeLink?: Link = undefined
 
   /**
    * Doubly linked list representing the subscribing effects (tail)
+   * 订阅者链表尾部: 双向链表的尾部指针
+   * 订阅者管理: 管理所有订阅此依赖的Effect和Computed
    */
   subs?: Link = undefined
 
   /**
    * Doubly linked list representing the subscribing effects (head)
    * DEV only, for invoking onTrigger hooks in correct order
+   * 开发模式专用: 仅在__DEV__模式下使用
+   * 链表头部: 双向链表的头部指针
+   * 调试支持: 用于按正确顺序调用onTrigger钩子
    */
   subsHead?: Link
 
   /**
    * For object property deps cleanup
+   * 反向引用: 指向包含此Dep的Map  => type KeyToDepMap = Map<any, Dep>
+   * 清理支持: 用于对象属性依赖的清理操作
+   * 使用场景: 内存管理: 当对象被销毁时清理相关依赖,动态属性: 支持动态添加/删除的响应式属性
    */
   map?: KeyToDepMap = undefined
+
+  /**
+   * 属性标识: 存储此Dep对应的属性键
+   * 调试信息: 在开发模式下提供更好的调试体验
+   */
   key?: unknown = undefined
 
   /**
    * Subscriber counter
+   * 记录订阅者数量
+   * - **内存优化**: 当计数为0时可以考虑清理
+      - **性能监控**: 帮助分析依赖关系复杂度
    */
   sc: number = 0
 
   /**
    * @internal
+   * 标识这是Vue内部对象,响应式跳过: 防止Dep对象本身被响应式化,
+   * 防止响应式系统对自身组件进行包装
    */
   readonly __v_skip = true
   // TODO isolatedDeclarations ReactiveFlags.SKIP
 
   constructor(public computed?: ComputedRefImpl | undefined) {
     if (__DEV__) {
+      //开发模式: 显式初始化subsHead
       this.subsHead = undefined
     }
   }
 
+  /**
+   *设计优势
+   * 智能复用: 避免重复创建Link对象
+   * LRU优化: 将最近使用的依赖移到链表尾部
+   * 版本同步: 确保Link版本与Dep版本一致
+   */
   track(debugInfo?: DebuggerEventExtraInfo): Link | undefined {
     if (!activeSub || !shouldTrack || activeSub === this.computed) {
       return
     }
 
+    //第一阶段：Link获取或创建
     let link = this.activeLink
     if (link === undefined || link.sub !== activeSub) {
       link = this.activeLink = new Link(activeSub, this)
 
       // add the link to the activeEffect as a dep (as tail)
+      // 将Link添加到订阅者的依赖链表
       if (!activeSub.deps) {
         activeSub.deps = activeSub.depsTail = link
       } else {
@@ -125,25 +164,30 @@ export class Dep {
 
       addSub(link)
     } else if (link.version === -1) {
+      // 第二阶段：Link复用优化
       // reused from last run - already a sub, just sync version
+      // 复用上次运行的Link
       link.version = this.version
 
       // If this dep has a next, it means it's not at the tail - move it to the
       // tail. This ensures the effect's dep list is in the order they are
       // accessed during evaluation.
+      // 将Link移动到链表尾部（LRU策略）
       if (link.nextDep) {
+        // 从当前位置移除
         const next = link.nextDep
         next.prevDep = link.prevDep
         if (link.prevDep) {
           link.prevDep.nextDep = next
         }
-
+        // 插入到尾部
         link.prevDep = activeSub.depsTail
         link.nextDep = undefined
         activeSub.depsTail!.nextDep = link
         activeSub.depsTail = link
 
         // this was the head - point to the new head
+        // 更新头部指针
         if (activeSub.deps === link) {
           activeSub.deps = next
         }
@@ -164,9 +208,17 @@ export class Dep {
     return link
   }
 
+  /**
+   * 版本机制
+   * 本地版本: 用于此Dep的缓存失效
+   * 全局版本: 用于整个系统的缓存失效
+   */
   trigger(debugInfo?: DebuggerEventExtraInfo): void {
+    // 更新本地版本
     this.version++
+    // 更新全局版本
     globalVersion++
+    // 通知所有订阅者
     this.notify(debugInfo)
   }
 
