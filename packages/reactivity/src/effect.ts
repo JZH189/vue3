@@ -38,18 +38,30 @@ export interface ReactiveEffectRunner<T = any> {
 
 export let activeSub: Subscriber | undefined
 
+/**
+ * 此设计提升了开发体验
+ * 调试时可以通过查看单个 flags 数值快速了解所有状态
+ * 减少了代码复杂度，避免管理多个独立的布尔属性
+ * 提供了清晰的状态管理模式
+ * 这种设计体现了 Vue 3 在性能和内存使用方面的深度优化，特别是在响应式系统这样的核心功能中，每一点性能提升都会对整体应用产生显著影响。
+ */
 export enum EffectFlags {
   /**
    * ReactiveEffect only
+   * 为什么用 1 << 0 而不是直接写 1
+   * 最直接的原因：
+   * 1、代码可读性。每个标志占用不同的位，且顺序是连续的
+   * 2、减少思维负担 - 不需要记住或计算 2^n 的值，减少出错概率
+   * 3、编程约定
    */
-  ACTIVE = 1 << 0,
-  RUNNING = 1 << 1,
-  TRACKING = 1 << 2,
-  NOTIFIED = 1 << 3,
-  DIRTY = 1 << 4,
-  ALLOW_RECURSE = 1 << 5,
-  PAUSED = 1 << 6,
-  EVALUATED = 1 << 7,
+  ACTIVE = 1 << 0, // 1:   副作用是否活跃
+  RUNNING = 1 << 1, // 2:   副作用是否正在运行
+  TRACKING = 1 << 2, // 4:   是否正在收集依赖
+  NOTIFIED = 1 << 3, // 8:   是否已被通知
+  DIRTY = 1 << 4, // 16:  是否需要重新计算
+  ALLOW_RECURSE = 1 << 5, // 32:  是否允许递归
+  PAUSED = 1 << 6, // 64:  是否已暂停
+  EVALUATED = 1 << 7, // 128: 是否已求值
 }
 
 /**

@@ -44,10 +44,10 @@ export class Link {
   /**
    * Pointers for doubly-linked lists
    */
-  nextDep?: Link
-  prevDep?: Link
-  nextSub?: Link
-  prevSub?: Link
+  nextDep?: Link //指向下一个依赖
+  prevDep?: Link //指向上一个依赖
+  nextSub?: Link //指向下一个订阅者
+  prevSub?: Link //指向上一个订阅者
   prevActiveLink?: Link
 
   constructor(
