@@ -264,7 +264,17 @@ export class Dep {
         // subs are notified and batched in reverse-order and then invoked in
         // original order at the end of the batch, but onTrigger hooks should
         // be invoked in original order here.
+        // 遍历订阅者链表，从头部开始按原始顺序检查每个订阅者
+        // head.nextSub 指向下一个订阅者，形成单向链表遍历
+        // 根据项目规范，Vue 3注重性能优化：
+        // 链表比数组更节省内存（不需要预分配连续空间）
+        // 动态添加/删除订阅者更高效
+        // 避免数组重新分配带来的性能开销
         for (let head = this.subsHead; head; head = head.nextSub) {
+          // 检查两个条件：
+          // 1. head.sub.onTrigger 存在 - 该订阅者有调试钩子函数
+          // 2. !(head.sub.flags & EffectFlags.NOTIFIED) - 该订阅者在当前批次中还未被通知过
+          // NOTIFIED 标志用于防止在同一批次中重复执行 onTrigger 钩子，这是批处理优化的关键
           if (head.sub.onTrigger && !(head.sub.flags & EffectFlags.NOTIFIED)) {
             //只有当 effect 还没有被通知过时，才执行 onTrigger 钩子
             // 避免在同一批次中重复触发 onTrigger
@@ -286,11 +296,18 @@ export class Dep {
           }
         }
       }
+      // 第二阶段：通知所有订阅者执行响应式更新
+      // 使用反向遍历（从尾部到头部），这是批处理机制的重要设计
+      // link.prevSub 指向前一个订阅者，实现反向链表遍历
       for (let link = this.subs; link; link = link.prevSub) {
+        // 调用订阅者的 notify() 方法来触发更新
+        // 对于普通 effect，notify() 返回 false
+        // 对于 computed，notify() 返回 true（标识这是一个computed属性）
         if (link.sub.notify()) {
-          // if notify() returns `true`, this is a computed. Also call notify
-          // on its dep - it's called here instead of inside computed's notify
-          // in order to reduce call stack depth.
+          // 如果 notify() 返回 true，说明这是一个 computed 属性
+          // 需要继续通知 computed 自身的依赖项（computed.dep）
+          // 这里而不是在 computed.notify() 内部调用，是为了减少调用栈深度
+          // 避免深度递归导致的性能问题和栈溢出风险
           ;(link.sub as ComputedRefImpl).dep.notify()
         }
       }
