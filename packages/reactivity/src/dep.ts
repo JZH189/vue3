@@ -160,11 +160,12 @@ export class Dep {
       !shouldTrack || // 检查2: 全局依赖跟踪开关是否开启
       activeSub === this.computed // 检查3: 避免computed对自身的循环依赖
     ) {
+      // activeSub 初始化逻辑在packages\reactivity\src\effect.ts文件的ReactiveEffect.run方法中
       /**
        * 提前返回的三种情况分析：
        *
        * 情况1: !activeSub - 没有活跃的订阅者
-       * - 原因: 当前没有effect或computed在执行
+       * - 原因: 当前没有effect或computed在执行（组件的模板渲染使用）
        * - 场景: 普通的属性访问，不在响应式上下文中
        * - 处理: 不收集依赖，避免无效的依赖关系
        *
@@ -299,31 +300,75 @@ export class Dep {
   }
 }
 
+/**
+ * 将订阅者添加到依赖的订阅者链表中
+ * 这是Vue 3响应式系统中建立依赖关系的核心函数
+ *
+ * @param link - 连接订阅者和依赖的Link对象
+ */
 function addSub(link: Link) {
+  // 阶段1: 增加订阅者计数
+  // sc = subscriber counter，记录当前依赖有多少个订阅者
   link.dep.sc++
+
+  // 阶段2: 检查订阅者是否支持依赖跟踪
+  // 只有具备TRACKING标志的订阅者才可以被添加到订阅者链表中
   if (link.sub.flags & EffectFlags.TRACKING) {
+    // 阶段3: 处理computed属性的特殊情况
     const computed = link.dep.computed
-    // computed getting its first subscriber
-    // enable tracking + lazily subscribe to all its deps
+
+    /**
+     * computed的懒加载机制：
+     * - computed在创建时不会立即计算，也不会订阅其依赖
+     * - 只有当computed获得第一个订阅者时，才开始激活并订阅其依赖
+     * - 这种设计避免了无用computed的内存开销和计算开销
+     */
     if (computed && !link.dep.subs) {
+      // computed获得第一个订阅者，开始激活
+
+      // 设置computed的状态标志
+      // TRACKING: 开启依赖跟踪，允许收集其依赖
+      // DIRTY: 标记为脏数据，需要重新计算
       computed.flags |= EffectFlags.TRACKING | EffectFlags.DIRTY
+
+      // 递归订阅computed的所有依赖
+      // 这是懒加载的关键：只有在computed被需要时才建立其依赖关系
       for (let l = computed.deps; l; l = l.nextDep) {
-        addSub(l)
+        addSub(l) // 递归调用，为computed的每个依赖添加订阅
       }
     }
 
+    // 阶段4: 将新的Link添加到订阅者链表中
+    // Vue 3使用双向链表管理订阅者，subs指向链表尾部
     const currentTail = link.dep.subs
+
+    // 检查是否已经在链表中（避免重复添加）
     if (currentTail !== link) {
+      // 将当前尾部设为新link的前驱节点
       link.prevSub = currentTail
+
+      // 如果存在尾部节点，就将其nextSub指向新link
       if (currentTail) currentTail.nextSub = link
     }
 
+    // 阶段5: 开发模式下的头部指针初始化
+    // subsHead用于在开发模式下按正确顺序调用onTrigger钩子
     if (__DEV__ && link.dep.subsHead === undefined) {
-      link.dep.subsHead = link
+      link.dep.subsHead = link // 设置第一个订阅者为头部
     }
 
+    // 阶段6: 更新尾部指针
+    // 将新的link设为当前的尾部节点
     link.dep.subs = link
   }
+
+  /**
+   * 函数执行后的效果：
+   * 1. 订阅者计数器增加
+   * 2. 如果是computed的第一个订阅者，激活computed并建立其依赖关系
+   * 3. 新的订阅者被添加到双向链表的尾部
+   * 4. 保持链表的完整性和一致性
+   */
 }
 
 // The main WeakMap that stores {target -> key -> dep} connections.
