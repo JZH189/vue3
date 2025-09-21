@@ -26,7 +26,6 @@ export let globalVersion = 0
  * A Link is also a node in two doubly-linked lists - one for the associated
  * sub to track all its deps, and one for the associated dep to track all its
  * subs.
- *
  * @internal
  */
 export class Link {
@@ -50,6 +49,14 @@ export class Link {
   prevSub?: Link //指向上一个订阅者
   prevActiveLink?: Link
 
+  /**public sub: Subscriber 这种写法是TypeScript的参数属性（Parameter Properties）语法，它会：
+自动声明一个名为sub的公共属性
+在构造函数中自动将传入的参数赋值给this.sub 
+* 这种设计体现了桥接模式的思想：
+ * Link：作为桥梁连接Subscriber和Dep
+ * sub属性：存储对订阅者的引用，用于后续的通信和操作
+ * dep属性：存储对依赖的引用，用于版本同步等操作
+*/
   constructor(
     public sub: Subscriber,
     public dep: Dep,
@@ -143,7 +150,34 @@ export class Dep {
    * 版本同步: 确保Link版本与Dep版本一致
    */
   track(debugInfo?: DebuggerEventExtraInfo): Link | undefined {
-    if (!activeSub || !shouldTrack || activeSub === this.computed) {
+    /**
+     * 依赖收集的三重安全检查
+     * 这是Vue 3响应式系统中最关键的依赖收集入口检查逻辑
+     * 只有通过所有检查的情况下，才会进行实际的依赖收集操作
+     */
+    if (
+      !activeSub || // 检查1: 当前是否有活跃的订阅者（effect或computed）
+      !shouldTrack || // 检查2: 全局依赖跟踪开关是否开启
+      activeSub === this.computed // 检查3: 避免computed对自身的循环依赖
+    ) {
+      /**
+       * 提前返回的三种情况分析：
+       *
+       * 情况1: !activeSub - 没有活跃的订阅者
+       * - 原因: 当前没有effect或computed在执行
+       * - 场景: 普通的属性访问，不在响应式上下文中
+       * - 处理: 不收集依赖，避免无效的依赖关系
+       *
+       * 情况2: !shouldTrack - 全局禁用依赖跟踪
+       * - 原因: 通过pauseTracking()主动禁用了依赖收集
+       * - 场景: 某些操作需要访问响应式数据但不希望建立依赖关系
+       * - 处理: 临时跳过依赖收集，常用于性能优化
+       *
+       * 情况3: activeSub === this.computed - 防止循环依赖
+       * - 原因: computed正在计算自身，避免对自己建立依赖
+       * - 场景: computed内部访问自己的值或相关属性
+       * - 处理: 阻止循环引用，保证系统稳定性
+       */
       return
     }
 
