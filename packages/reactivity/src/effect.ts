@@ -183,6 +183,7 @@ export class ReactiveEffect<T = any>
     const prevEffect = activeSub
     const prevShouldTrack = shouldTrack
     activeSub = this
+    console.log('activeSub被设置了1', activeSub)
     shouldTrack = true
 
     try {
@@ -196,6 +197,7 @@ export class ReactiveEffect<T = any>
       }
       cleanupDeps(this)
       activeSub = prevEffect
+      console.log('activeSub被设置了2', activeSub)
       shouldTrack = prevShouldTrack
       this.flags &= ~EffectFlags.RUNNING
     }
@@ -581,16 +583,28 @@ export function onEffectCleanup(fn: () => void, failSilently = false): void {
   }
 }
 
+/**
+ * 清理副作用函数，用于在副作用失效或重新执行前进行清理工作
+ *
+ * @param e - 需要清理的响应式副作用对象
+ */
 function cleanupEffect(e: ReactiveEffect) {
+  // 获取副作用的清理函数
   const { cleanup } = e
+  // 立即清空清理函数引用，防止重复清理
   e.cleanup = undefined
+
   if (cleanup) {
-    // run cleanup without active effect
+    // 在没有活跃副作用的环境中运行清理函数
+    // 这样做是为了避免清理过程中意外触发新的依赖收集
     const prevSub = activeSub
     activeSub = undefined
     try {
+      // 执行用户定义的清理逻辑
       cleanup()
     } finally {
+      // 无论清理是否成功，都要恢复之前的活跃订阅者
+      // 确保不会影响外层的副作用执行环境
       activeSub = prevSub
     }
   }

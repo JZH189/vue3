@@ -69,7 +69,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch, reactive, toRaw } from 'vue'
+import { ref, computed, watch, reactive, toRaw, watchEffect } from 'vue'
 
 // 类型定义
 // interface Todo {
@@ -81,7 +81,14 @@ import { ref, computed, watch, reactive, toRaw } from 'vue'
 
 // 响应式数据
 const count = ref(0)
-console.log('count: ', count)
+
+// 添加带有onTrigger钩子的watchEffect来监听响应式变化
+// watchEffect(
+//   () => {
+//     // 访问count.value来建立依赖关系
+//     console.log('watchEffect执行，当前count值:', count.value)
+//   }
+// )
 // const test = reactive({ test: 'test' })
 // // const rawTest = toRaw(test)
 // const test1 = reactive(test)
@@ -197,11 +204,4 @@ console.log('count: ', count)
 
 // // 组件挂载时初始化
 // initTodos()
-
-// // 调试信息
-// console.log('App.vue 组件已加载')
-// console.log(
-//   '当前 Vue 版本:',
-//   import.meta.env.DEV ? '开发版本(源码)' : '生产版本',
-// )
 </script>
