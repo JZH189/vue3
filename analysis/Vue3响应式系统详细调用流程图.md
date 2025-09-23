@@ -309,44 +309,44 @@ flowchart TD
 
 ```mermaid
 sequenceDiagram
-    participant User as 用户代码
-    participant Proxy as 响应式代理
-    participant Handler as Handler
-    participant Dep as Dep
-    participant Effect as ReactiveEffect
-    participant Scheduler as 调度器
-    participant DOM as DOM更新
+    participant User as "用户代码"
+    participant Proxy as "响应式代理"
+    participant Handler as "Handler"
+    participant Dep as "Dep"
+    participant Effect as "ReactiveEffect"
+    participant Scheduler as "调度器"
+    participant DOM as "DOM更新"
 
-    Note over User,DOM: 1. 初始化阶段
-    User->>Proxy: reactive(data)
-    Proxy->>Handler: 创建代理处理器
+    Note over User,DOM: "1. 初始化阶段"
+    User->>Proxy: "reactive(data)"
+    Proxy->>Handler: "创建代理处理器"
 
-    User->>Effect: effect(() => render())
-    Effect->>Effect: 执行render函数
-    Effect->>Proxy: 访问响应式数据
-    Proxy->>Handler: 拦截get操作
-    Handler->>Dep: track建立依赖
-    Dep->>Effect: 添加到订阅者列表
+    User->>Effect: "effect(() => render())"
+    Effect->>Effect: "执行render函数"
+    Effect->>Proxy: "访问响应式数据"
+    Proxy->>Handler: "拦截get操作"
+    Handler->>Dep: "track建立依赖"
+    Dep->>Effect: "添加到订阅者列表"
 
-    Note over User,DOM: 2. 响应式更新阶段
-    User->>Proxy: data.count = 10
-    Proxy->>Handler: 拦截set操作
-    Handler->>Dep: trigger通知变化
-    Dep->>Dep: 版本号递增
+    Note over User,DOM: "2. 响应式更新阶段"
+    User->>Proxy: "data.count = 10"
+    Proxy->>Handler: "拦戮set操作"
+    Handler->>Dep: "trigger通知变化"
+    Dep->>Dep: "版本号递增"
 
-    Dep->>Effect: notify通知订阅者
-    Effect->>Scheduler: 加入批处理队列
+    Dep->>Effect: "notify通知订阅者"
+    Effect->>Scheduler: "加入批处理队列"
 
-    Note over User,DOM: 3. 批处理执行阶段
-    Scheduler->>Scheduler: startBatch()
-    Scheduler->>Effect: 批量执行effects
-    Effect->>Effect: run()重新执行
-    Effect->>DOM: 更新DOM
-    Scheduler->>Scheduler: endBatch()
+    Note over User,DOM: "3. 批处理执行阶段"
+    Scheduler->>Scheduler: "startBatch()"
+    Scheduler->>Effect: "批量执行effects"
+    Effect->>Effect: "run()重新执行"
+    Effect->>DOM: "更新DOM"
+    Scheduler->>Scheduler: "endBatch()"
 
-    Note over User,DOM: 4. 清理阶段
-    Effect->>Dep: 清理无用依赖
-    Dep->>Dep: 更新订阅者列表
+    Note over User,DOM: "4. 清理阶段"
+    Effect->>Dep: "清理无用依赖"
+    Dep->>Dep: "更新订阅者列表"
 ```
 
 ## 10. 性能优化检查点

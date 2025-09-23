@@ -80,58 +80,58 @@ graph TB
 
 ```mermaid
 sequenceDiagram
-    participant User as 用户代码
-    participant API as API层
-    participant Proxy as 代理层
-    participant TargetMap as 依赖映射
+    participant User as "用户代码"
+    participant API as "API层"
+    participant Proxy as "代理层"
+    participant TargetMap as "依赖映射"
 
-    User->>API: reactive(obj)
-    API->>API: createReactiveObject()
-    API->>Proxy: new Proxy(target, handler)
-    Proxy->>TargetMap: 准备依赖收集结构
-    Proxy-->>User: 返回响应式代理对象
+    User->>API: "reactive(obj)"
+    API->>API: "createReactiveObject()"
+    API->>Proxy: "new Proxy(target, handler)"
+    Proxy->>TargetMap: "准备依赖收集结构"
+    Proxy-->>User: "返回响应式代理对象"
 ```
 
 ### 3.2 依赖收集阶段
 
 ```mermaid
 sequenceDiagram
-    participant Effect as ReactiveEffect
-    participant Handler as MutableReactiveHandler
-    participant Track as track()
-    participant Dep as Dep
-    participant Link as Link
+    participant Effect as "ReactiveEffect"
+    participant Handler as "MutableReactiveHandler"
+    participant Track as "track()"
+    participant Dep as "Dep"
+    participant LinkObj as "Link"
 
-    Effect->>Effect: run() 开始执行
-    Effect->>Effect: activeSub = this
-    Effect->>Handler: 访问响应式属性
-    Handler->>Track: track(target, key)
-    Track->>Dep: 获取或创建Dep
-    Dep->>Link: 创建或复用Link
-    Link->>Effect: 添加到deps链表
-    Link->>Dep: 添加到subs链表
+    Effect->>Effect: "run() 开始执行"
+    Effect->>Effect: "activeSub = this"
+    Effect->>Handler: "访问响应式属性"
+    Handler->>Track: "track(target, key)"
+    Track->>Dep: "获取或创建Dep"
+    Dep->>LinkObj: "创建或复用Link"
+    LinkObj->>Effect: "添加到deps链表"
+    LinkObj->>Dep: "添加到subs链表"
 ```
 
 ### 3.3 响应式更新阶段
 
 ```mermaid
 sequenceDiagram
-    participant User as 用户代码
-    participant Handler as MutableReactiveHandler
-    participant Trigger as trigger()
-    participant Dep as Dep
-    participant Batch as 批处理系统
-    participant Effect as ReactiveEffect
+    participant User as "用户代码"
+    participant Handler as "MutableReactiveHandler"
+    participant Trigger as "trigger()"
+    participant Dep as "Dep"
+    participant Batch as "批处理系统"
+    participant Effect as "ReactiveEffect"
 
-    User->>Handler: 修改响应式属性
-    Handler->>Trigger: trigger(target, key)
-    Trigger->>Dep: dep.trigger()
-    Dep->>Dep: version++, globalVersion++
-    Dep->>Batch: startBatch()
-    Dep->>Effect: notify() 通知所有订阅者
-    Effect->>Batch: batch(effect) 加入队列
-    Batch->>Effect: 批量执行effects
-    Batch->>Batch: endBatch()
+    User->>Handler: "修改响应式属性"
+    Handler->>Trigger: "trigger(target, key)"
+    Trigger->>Dep: "dep.trigger()"
+    Dep->>Dep: "version++, globalVersion++"
+    Dep->>Batch: "startBatch()"
+    Dep->>Effect: "notify() 通知所有订阅者"
+    Effect->>Batch: "batch(effect) 加入队列"
+    Batch->>Effect: "批量执行effects"
+    Batch->>Batch: "endBatch()"
 ```
 
 ## 4. 关键设计模式分析
