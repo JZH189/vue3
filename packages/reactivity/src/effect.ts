@@ -105,48 +105,97 @@ export interface Subscriber extends DebuggerOptions {
 
 const pausedQueueEffects = new WeakSet<ReactiveEffect>()
 
+/**
+ * ReactiveEffect 类是 Vue 3 响应式系统的核心实现
+ * 负责管理副作用函数的执行、依赖收集和更新触发
+ *
+ * 主要功能：
+ * 1. 执行副作用函数并自动收集依赖
+ * 2. 当依赖发生变化时，自动重新执行副作用函数
+ * 3. 管理副作用的生命周期（激活、暂停、停止）
+ * 4. 处理调度器和清理函数
+ */
 export class ReactiveEffect<T = any>
   implements Subscriber, ReactiveEffectOptions
 {
   /**
+   * 依赖链表的头节点
+   * 用于跟踪当前副作用依赖的所有响应式数据
    * @internal
    */
   deps?: Link = undefined
+
   /**
+   * 依赖链表的尾节点
+   * 便于在链表末尾快速添加新的依赖
    * @internal
    */
   depsTail?: Link = undefined
+
   /**
+   * 副作用的状态标志位
+   * 使用位运算来高效管理多个布尔状态
+   * 默认状态：ACTIVE（激活） | TRACKING（正在追踪依赖）
    * @internal
    */
   flags: EffectFlags = EffectFlags.ACTIVE | EffectFlags.TRACKING
+
   /**
+   * 指向下一个订阅者的指针
+   * 用于在批处理队列中形成链表结构
    * @internal
    */
   next?: Subscriber = undefined
+
   /**
+   * 清理函数，在副作用重新执行或停止时调用
+   * 用于清理上一次执行产生的副作用（如事件监听器、定时器等）
    * @internal
    */
   cleanup?: () => void = undefined
 
+  /** 调度器函数，控制副作用的执行时机 */
   scheduler?: EffectScheduler = undefined
+
+  /** 副作用停止时的回调函数 */
   onStop?: () => void
+
+  /** 依赖追踪时的调试回调 */
   onTrack?: (event: DebuggerEvent) => void
+
+  /** 依赖触发时的调试回调 */
   onTrigger?: (event: DebuggerEvent) => void
 
+  /**
+   * 构造函数：创建一个新的响应式副作用
+   * @param fn 要执行的副作用函数
+   */
   constructor(public fn: () => T) {
+    // 如果存在活跃的副作用作用域，将当前副作用添加到该作用域中
+    // 这样可以统一管理作用域内的所有副作用（如组件卸载时批量清理）
     if (activeEffectScope && activeEffectScope.active) {
       activeEffectScope.effects.push(this)
     }
   }
 
+  /**
+   * 暂停副作用的执行
+   * 设置 PAUSED 标志位，暂停后的副作用不会立即执行，而是加入暂停队列
+   */
   pause(): void {
+    //按位或赋值运算符，表示副作用现在处于"暂停"状态
     this.flags |= EffectFlags.PAUSED
   }
 
+  /**
+   * 恢复副作用的执行
+   * 清除 PAUSED 标志位，如果副作用在暂停队列中，则移除并立即触发执行
+   */
   resume(): void {
     if (this.flags & EffectFlags.PAUSED) {
+      // 清除暂停标志位
       this.flags &= ~EffectFlags.PAUSED
+      // 如果副作用在暂停队列中，移除并触发执行
       if (pausedQueueEffects.has(this)) {
         pausedQueueEffects.delete(this)
         this.trigger()
@@ -155,77 +204,132 @@ export class ReactiveEffect<T = any>
   }
 
   /**
+   * 通知副作用需要更新
+   * 这是响应式系统触发更新的入口点
    * @internal
    */
   notify(): void {
+    // 防止递归执行：如果副作用正在运行且不允许递归，则直接返回
     if (
       this.flags & EffectFlags.RUNNING &&
       !(this.flags & EffectFlags.ALLOW_RECURSE)
     ) {
       return
     }
+    // 如果尚未被通知，则加入批处理队列
+    // 避免同一个更新周期内重复通知同一个副作用
     if (!(this.flags & EffectFlags.NOTIFIED)) {
       batch(this)
     }
   }
 
+  /**
+   * 执行副作用函数
+   * 这是响应式系统的核心方法，负责:
+   * 1. 设置依赖收集环境
+   * 2. 执行用户的副作用函数
+   * 3. 收集新的依赖
+   * 4. 清理无用的依赖
+   * @returns 副作用函数的返回值
+   */
   run(): T {
-    // TODO cleanupEffect
-
+    // 如果副作用已被停止，直接执行函数但不进行依赖收集
     if (!(this.flags & EffectFlags.ACTIVE)) {
       // stopped during cleanup
       return this.fn()
     }
 
+    // 设置运行标志位
     this.flags |= EffectFlags.RUNNING
+
+    // 清理上一次执行的副作用
     cleanupEffect(this)
+
+    // 准备依赖收集：将所有现有依赖标记为待验证状态
     prepareDeps(this)
+
+    // 保存当前的全局状态
     const prevEffect = activeSub
     const prevShouldTrack = shouldTrack
+
+    // 设置当前副作用为活跃状态，开启依赖收集
     activeSub = this
     console.log('activeSub被设置了1', activeSub)
     shouldTrack = true
 
     try {
+      // 执行用户的副作用函数，期间会自动收集依赖
       return this.fn()
     } finally {
+      // 开发环境下检查状态一致性
       if (__DEV__ && activeSub !== this) {
         warn(
           'Active effect was not restored correctly - ' +
             'this is likely a Vue internal bug.',
         )
       }
+
+      // 清理未使用的依赖
       cleanupDeps(this)
+
+      // 恢复之前的全局状态
       activeSub = prevEffect
       console.log('activeSub被设置了2', activeSub)
       shouldTrack = prevShouldTrack
+
+      // 清除运行标志位
       this.flags &= ~EffectFlags.RUNNING
     }
   }
 
+  /**
+   * 停止副作用的执行
+   * 清理所有依赖关系，执行清理函数，并调用停止回调
+   */
   stop(): void {
     if (this.flags & EffectFlags.ACTIVE) {
+      // 遍历所有依赖，从对应的依赖中移除当前副作用
       for (let link = this.deps; link; link = link.nextDep) {
         removeSub(link)
       }
+
+      // 清空依赖链表
       this.deps = this.depsTail = undefined
+
+      // 执行清理函数
       cleanupEffect(this)
+
+      // 调用停止回调
       this.onStop && this.onStop()
+
+      // 清除激活标志位，标记副作用已停止
       this.flags &= ~EffectFlags.ACTIVE
     }
   }
 
+  /**
+   * 触发副作用的执行
+   * 根据副作用的状态决定执行策略：
+   * 1. 如果已暂停，加入暂停队列
+   * 2. 如果有调度器，使用调度器执行
+   * 3. 否则检查是否需要执行并直接运行
+   */
   trigger(): void {
     if (this.flags & EffectFlags.PAUSED) {
+      // 如果副作用已暂停，加入暂停队列等待恢复</T>
       pausedQueueEffects.add(this)
     } else if (this.scheduler) {
+      // 如果有自定义调度器，使用调度器控制执行时机
       this.scheduler()
     } else {
+      // 默认情况：检查是否脏数据，如果是则立即执行
       this.runIfDirty()
     }
   }
 
   /**
+   * 仅在需要时运行副作用
+   * 检查依赖是否发生变化，只有在"脏"状态时才执行
    * @internal
    */
   runIfDirty(): void {
@@ -234,6 +338,10 @@ export class ReactiveEffect<T = any>
     }
   }
 
+  /**
+   * 获取副作用是否处于"脏"状态
+   * "脏"表示依赖发生了变化，需要重新执行副作用函数
+   */
   get dirty(): boolean {
     return isDirty(this)
   }
