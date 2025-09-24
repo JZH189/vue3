@@ -119,9 +119,11 @@ export class Link {
 
 ```
 1. 执行阶段：
+  代码位置：packages\runtime-core\src\renderer.ts ==> update() 执行
    effect.run() → activeSub = effect → 访问 obj.count
 
 2. 依赖收集阶段：
+  代码位置：packages\reactivity\src\dep.ts ==> track()
    obj.count 的 getter → dep.track() → 检查 activeSub → 创建 Link
 
 3. 链接建立：
