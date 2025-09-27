@@ -289,6 +289,7 @@ function createReactiveObject(
   if (existingProxy) {
     return existingProxy
   }
+  // 如果是Map、Set、WeakMap、WeakSet 类型的数据结构，则使用collectionHandlers，否则使用baseHandlers
   const handler =
     targetType === TargetType.COLLECTION ? collectionHandlers : baseHandlers
   const proxy = new Proxy(target, handler)
@@ -411,11 +412,20 @@ export function markRaw<T extends object>(value: T): Raw<T> {
 }
 
 /**
- * Returns a reactive proxy of the given value (if possible).
+ * 将任意值转换为响应式对象（如果可能）
  *
- * If the given value is not an object, the original value itself is returned.
+ * 泛型参数设计原理：
+ * T extends unknown - 这里使用 unknown 而不是 any 的原因：
+ * 1. 类型安全：unknown 比 any 更安全，unknown 的设计哲学是："我知道这里有个值，但我不知道它是什么类型，所以在使用前必须先检查"
+ * 2. 约束作用：虽然所有类型都继承自 unknown，但它提供了明确的类型约束
+ * 3. 与 reactive 函数的区别：reactive 要求 T extends object，而 toReactive 需要处理所有类型
+ * 4. 条件逻辑：在运行时通过 isObject() 判断是否需要转换为响应式
  *
- * @param value - The value for which a reactive proxy shall be created.
+ * 如果传入的值不是对象，则返回原始值本身
+ *
+ * @template T - 要检测的类型，extends unknown 确保类型安全的同时允许任意类型
+ * @param value - 要为其创建响应式代理的值
+ * @returns 如果是对象则返回响应式代理，否则返回原值
  */
 export const toReactive = <T extends unknown>(value: T): T =>
   isObject(value) ? reactive(value) : value
