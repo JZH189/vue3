@@ -20,16 +20,27 @@ import type { ComputedRef, WritableComputedRef } from './computed'
 import { ReactiveFlags, TrackOpTypes, TriggerOpTypes } from './constants'
 import { warn } from './warning'
 
+//ts的全局唯一标识符，定义的时候就已经确定了唯一性
 declare const RefSymbol: unique symbol
 export declare const RawSymbol: unique symbol
 
+/**
+ * / Ref接口定义契约
+ * T：表示ref值的读取类型（getter返回的类型）
+ * S：表示ref值的设置类型（setter接受的类型）
+ * T = any：如果不指定T，默认为any类型
+ * S = T：如果不指定S，默认等于T类型
+ * // 基本用法
+ * const count: Ref<number> = ref(0)
+ * count.value = 5        // ✓ 正确
+ * count.value = 'hello'  // ❌ TypeScript错误
+ */
 export interface Ref<T = any, S = T> {
   get value(): T
   set value(_: S)
   /**
-   * Type differentiator only.
-   * We need this to be in public d.ts but don't want it to show up in IDE
-   * autocomplete, so we use a private Symbol instead.
+   * 仅键入区分。
+   * 我们需要在公共d.ts中使用它，但不希望它显示在IDE自动完成中，因此我们使用私人符号。
    */
   [RefSymbol]: true
 }
@@ -51,6 +62,35 @@ export function isRef(r: any): r is Ref {
  *
  * @param value - The object to wrap in the ref.
  * @see {@link https://vuejs.org/api/reactivity-core.html#ref}
+ */
+/**
+ * 创建一个响应式引用对象
+ *
+ * 这个函数重载使用了复杂的 TypeScript 条件类型来确保类型安全：
+ *
+ * // 分布式条件类型原理解释
+ * type T = A | B | C
+ *分布式：T extends U 等价于 (A extends U) | (B extends U) | (C extends U)
+ *非分布式：[T] extends [U] 等价于 [A | B | C] extends [U]
+ * 1. 泛型参数 <T>：推断传入值的类型
+ * 2. 条件类型判断：[T] extends [Ref] ? ... : ...
+ *    - 使用元组 [T] 和 [Ref] 避免分布式条件类型
+ *    - 检查 T 是否已经是 Ref 类型，防止重复包装
+ *
+ * 3. 如果 T 已经是 Ref 类型：IfAny<T, Ref<T>, T>
+ *    - 使用 IfAny 工具类型处理 any 类型的特殊情况
+ *    - 如果是 any，返回 Ref<T>；否则直接返回 T（避免嵌套）
+ *
+ * 4. 如果 T 不是 Ref 类型：Ref<UnwrapRef<T>, UnwrapRef<T> | T>
+ *    - 第一个泛型参数：UnwrapRef<T> - 内部存储的值类型
+ *    - 第二个泛型参数：UnwrapRef<T> | T - 可接受的赋值类型
+ *    - UnwrapRef 会递归解包嵌套的 ref 和响应式对象
+ *
+ * 这种设计实现了：
+ * - 防止 ref(ref(value)) 创建嵌套 Ref
+ * - 自动解包嵌套的响应式对象
+ * - 支持灵活的类型赋值
+ * - 保持完整的类型安全性
  */
 export function ref<T>(
   value: T,
