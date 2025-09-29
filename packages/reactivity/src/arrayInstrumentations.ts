@@ -24,7 +24,19 @@ export function shallowReadArray<T>(arr: T[]): T[] {
   return arr
 }
 
+/**
+ * Record<string | symbol, Function> = <any> 等价写法 Record<string | symbol, Function> as any
+ *Record<K, V>：TypeScript 内置的工具类型，用于创建键值对映射。
+ *string | symbol：键的类型，可以是字符串或 Symbol，Function：值的类型，所有值都必须是函数
+ *<any>这是 TypeScript 的类型断言语法，作用是：
+ *告诉 TypeScript 编译器"相信我，这个对象符合 Record<string | symbol, Function> 类型"
+ *跳过严格的类型检查
+ *允许在对象字面量中使用一些 TypeScript 可能无法自动推断的语法。例如__proto__: null,  // 这不是函数，但在设计上是必要的
+ */
 export const arrayInstrumentations: Record<string | symbol, Function> = <any>{
+  // 避免继承 Object.prototype 的方法
+  // 确保属性查找的精确性
+  // 避免意外的依赖收集和追踪
   __proto__: null,
 
   [Symbol.iterator]() {
