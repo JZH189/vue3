@@ -106,6 +106,7 @@ class BaseReactiveHandler implements ProxyHandler<Target> {
 
     if (!isReadonly) {
       let fn: Function | undefined
+      // 拦截数组的方法
       if (targetIsArray && (fn = arrayInstrumentations[key])) {
         return fn
       }
