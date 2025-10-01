@@ -109,22 +109,28 @@ export class Dep {
   /**
    * For object property deps cleanup
    * 反向引用: 指向包含此Dep的Map  => type KeyToDepMap = Map<any, Dep>
-   * 清理支持: 用于对象属性依赖的清理操作
-   * 使用场景: 内存管理: 当对象被销毁时清理相关依赖,动态属性: 支持动态添加/删除的响应式属性
+   * 建立 Dep 实例与其所属映射表和 key 的反向引用
+   * 便于从 Dep 实例反向查找其所属的映射表和键，支持依赖清理和调试功能
    */
   map?: KeyToDepMap = undefined
 
   /**
    * 属性标识: 存储此Dep对应的属性键
    * 调试信息: 在开发模式下提供更好的调试体验
+   * 反向引用: 指向包含此Dep的Map  => type KeyToDepMap = Map<any, Dep>
+   * 建立 Dep 实例与其所属映射表和 key 的反向引用
+   * 便于从 Dep 实例反向查找其所属的映射表和键，支持依赖清理和调试功能
+   * 后续可以通过removeSub函数中的dep.map.delete(dep.key)操作自动释放不再使用的依赖关系实现优化内存管理
    */
   key?: unknown = undefined
 
   /**
    * Subscriber counter
    * 记录订阅者数量
-   * - **内存优化**: 当计数为0时可以考虑清理
-      - **性能监控**: 帮助分析依赖关系复杂度
+   * 当一个属性不再有任何订阅者时（dep.sc 为 0），系统需要：
+   * 自动清理: 从 depsMap 中删除该属性的依赖项
+   * 防止内存泄漏: 避免废弃的 Dep 实例占用内存
+   * 回收资源: 释放不再使用的依赖关系
    */
   sc: number = 0
 
@@ -388,10 +394,8 @@ function addSub(link: Link) {
    */
 }
 
-// The main WeakMap that stores {target -> key -> dep} connections.
-// Conceptually, it's easier to think of a dependency as a Dep class
-// which maintains a Set of subscribers, but we simply store them as
-// raw Maps to reduce memory overhead.
+// 存储{target->键 -> dep}连接的主要弱图。
+// 从概念上讲，将依赖性视为维护一组订户的DEP类更容易，但是我们只是将它们存储为原始地图即可减少内存开销。
 type KeyToDepMap = Map<any, Dep>
 
 export const targetMap: WeakMap<object, KeyToDepMap> = new WeakMap()
@@ -407,34 +411,53 @@ export const ARRAY_ITERATE_KEY: unique symbol = Symbol(
 )
 
 /**
- * Tracks access to a reactive property.
+ * 追踪对响应式属性的访问，建立依赖关系
  *
- * This will check which effect is running at the moment and record it as dep
- * which records all effects that depend on the reactive property.
+ * 该函数是 Vue 3 响应式系统的核心函数之一，负责在属性读取时收集依赖。
+ * 它会检查当前正在运行的副作用（effect），并将其记录为依赖项，
+ * 从而建立属性与副作用之间的依赖关系。
  *
- * @param target - Object holding the reactive property.
- * @param type - Defines the type of access to the reactive property.
- * @param key - Identifier of the reactive property to track.
+ * @param target - 持有响应式属性的目标对象
+ * @param type - 定义对响应式属性的访问类型（GET、ITERATE 等）
+ * @param key - 要追踪的响应式属性的标识符
  */
 export function track(target: object, type: TrackOpTypes, key: unknown): void {
+  // 只有在允许追踪且存在活跃的订阅者（副作用）时才进行依赖收集
   if (shouldTrack && activeSub) {
+    // 从全局 targetMap 中获取目标对象对应的依赖映射表
     let depsMap = targetMap.get(target)
+
+    // 如果目标对象还没有依赖映射表，则创建一个新的
     if (!depsMap) {
       targetMap.set(target, (depsMap = new Map()))
     }
+
+    // 从依赖映射表中获取指定 key 对应的 Dep 实例
     let dep = depsMap.get(key)
+
+    // 如果该 key 还没有对应的 Dep 实例，则创建一个新的
     if (!dep) {
       depsMap.set(key, (dep = new Dep()))
+      /*
+      反向引用使得：
+      向上查找: Dep 实例可以找到它在哪个映射表中
+      精确删除: 知道要删除的具体 key 是什么
+      结构完整: 维护映射关系的一致性
+      */
       dep.map = depsMap
       dep.key = key
     }
+
+    // 调用 Dep 实例的 track 方法建立依赖关系
     if (__DEV__) {
+      // 开发环境下传递详细的调试信息
       dep.track({
         target,
         type,
         key,
       })
     } else {
+      // 生产环境下只调用基础的 track 方法，提升性能
       dep.track()
     }
   }

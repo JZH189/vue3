@@ -82,13 +82,6 @@ interface Todo {
 // 响应式数据
 // const count = ref(0)
 
-// 添加带有onTrigger钩子的watchEffect来监听响应式变化
-// watchEffect(
-//   () => {
-//     // 访问count.value来建立依赖关系
-//     console.log('watchEffect执行，当前count值:', count.value)
-//   }
-// )
 // const test = reactive({ test: 'test' })
 // // const rawTest = toRaw(test)
 // const test1 = reactive(test)
@@ -200,6 +193,12 @@ const initTodos = () => {
     ]
   }
 }
+
+watchEffect(() => {
+  for (const todo of todos.value) {
+    console.log('todo:', todo)
+  }
+})
 
 // 组件挂载时初始化
 initTodos()
