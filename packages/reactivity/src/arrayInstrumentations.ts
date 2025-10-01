@@ -39,6 +39,7 @@ export const arrayInstrumentations: Record<string | symbol, Function> = <any>{
   // 避免意外的依赖收集和追踪
   __proto__: null,
 
+  /**for of调用会触发此方法 */
   [Symbol.iterator]() {
     return iterator(this, Symbol.iterator, toReactive)
   },
@@ -206,33 +207,54 @@ export const arrayInstrumentations: Record<string | symbol, Function> = <any>{
 }
 
 // instrument iterators to take ARRAY_ITERATE dependency
+/**
+ * 数组迭代器函数，用于处理数组的迭代方法（如 values、keys、entries）
+ * @param self - 原始数组对象（可能是响应式代理）
+ * @param method - 数组迭代方法名（values、keys、entries 等）
+ * @param wrapValue - 值包装函数，用于对迭代值进行响应式包装
+ * @returns 返回经过处理的迭代器对象
+ */
 function iterator(
   self: unknown[],
   method: keyof Array<unknown>,
   wrapValue: (value: any) => unknown,
 ) {
-  // note that taking ARRAY_ITERATE dependency here is not strictly equivalent
-  // to calling iterate on the proxied array.
-  // creating the iterator does not access any array property:
-  // it is only when .next() is called that length and indexes are accessed.
-  // pushed to the extreme, an iterator could be created in one effect scope,
-  // partially iterated in another, then iterated more in yet another.
-  // given that JS iterator can only be read once, this doesn't seem like
-  // a plausible use-case, so this tracking simplification seems ok.
+  // 注意：在这里建立 ARRAY_ITERATE 依赖关系并不严格等同于在代理数组上调用迭代
+  // 创建迭代器本身不会访问任何数组属性：
+  // 只有在调用 .next() 时才会访问 length 和索引
+  // 极端情况下，迭代器可能在一个 effect 作用域中创建，
+  // 在另一个作用域中部分迭代，然后在第三个作用域中继续迭代
+  // 鉴于 JS 迭代器只能读取一次，这种用例似乎不太可能出现，
+  // 所以这种追踪简化是可以接受的
+
+  // 通过 shallowReadArray 获取数组，建立浅层读取依赖
   const arr = shallowReadArray(self)
+
+  // 调用原生数组方法创建迭代器，并扩展类型定义以包含 _next 属性
   const iter = (arr[method] as any)() as IterableIterator<unknown> & {
     _next: IterableIterator<unknown>['next']
   }
+
+  // 如果数组经过了响应式包装且不是浅层响应式
   if (arr !== self && !isShallow(self)) {
+    // 保存原始的 next 方法
     iter._next = iter.next
+
+    // 重写 next 方法，对返回的值进行响应式包装
     iter.next = () => {
+      // 调用原始的 next 方法获取结果
       const result = iter._next()
+
+      // 如果结果有值，使用 wrapValue 函数对值进行包装
+      // 这确保了迭代出的值也是响应式的
       if (result.value) {
         result.value = wrapValue(result.value)
       }
+
       return result
     }
   }
+
   return iter
 }
 
