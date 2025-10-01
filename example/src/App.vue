@@ -1,5 +1,5 @@
 <template>
-  <div style="font-size: 18px; width: 100%; text-align: center">
+  <!-- <div style="font-size: 18px; width: 100%; text-align: center">
     {{ count }}
     <button
       style="width: 100px; height: 40px; text-align: center; margin-left: 10px"
@@ -7,8 +7,8 @@
     >
       +1
     </button>
-  </div>
-  <!-- <div class="todo-container">
+  </div> -->
+  <div class="todo-container">
     <div class="todo-header">
       <h1>Vue 3 Todo List</h1>
       <p>源码调试示例 - 体验响应式系统</p>
@@ -65,22 +65,22 @@
         <p v-else>当前筛选条件下没有待办事项</p>
       </div>
     </div>
-  </div> -->
+  </div>
 </template>
 
 <script setup lang="ts">
 import { ref, computed, watch, reactive, toRaw, watchEffect } from 'vue'
 
 // 类型定义
-// interface Todo {
-//   id: number
-//   text: string
-//   completed: boolean
-//   createdAt: Date
-// }
+interface Todo {
+  id: number
+  text: string
+  completed: boolean
+  createdAt: Date
+}
 
 // 响应式数据
-const count = ref(0)
+// const count = ref(0)
 
 // 添加带有onTrigger钩子的watchEffect来监听响应式变化
 // watchEffect(
@@ -93,62 +93,61 @@ const count = ref(0)
 // // const rawTest = toRaw(test)
 // const test1 = reactive(test)
 // console.log('test1:', test1)
-// const newTodo = ref('')
-// const todos = ref<Todo[]>([])
-// const currentFilter = ref<'all' | 'active' | 'completed'>('all')
+const newTodo = ref('')
+const todos = ref<Todo[]>([])
+const currentFilter = ref<'all' | 'active' | 'completed'>('all')
 
 // // 筛选器配置
-// const filters = [
-//   { key: 'all' as const, label: '全部' },
-//   { key: 'active' as const, label: '进行中' },
-//   { key: 'completed' as const, label: '已完成' },
-// ]
+const filters = [
+  { key: 'all' as const, label: '全部' },
+  { key: 'active' as const, label: '进行中' },
+  { key: 'completed' as const, label: '已完成' },
+]
 
 // // 计算属性 - 这里是调试响应式系统的好地方
-// const filteredTodos = computed(() => {
-//   console.log('计算属性 filteredTodos 被重新计算')
+const filteredTodos = computed(() => {
+  console.log('计算属性 filteredTodos 被重新计算')
 
-//   switch (currentFilter.value) {
-//     case 'active':
-//       return todos.value.filter(todo => !todo.completed)
-//     case 'completed':
-//       return todos.value.filter(todo => todo.completed)
-//     default:
-//       return todos.value
-//   }
-// })
+  switch (currentFilter.value) {
+    case 'active':
+      return todos.value.filter(todo => !todo.completed)
+    case 'completed':
+      return todos.value.filter(todo => todo.completed)
+    default:
+      return todos.value
+  }
+})
 
-// const completedCount = computed(() => {
-//   console.log('计算属性 completedCount 被重新计算')
-//   return todos.value.filter(todo => todo.completed).length
-// })
+const completedCount = computed(() => {
+  console.log('计算属性 completedCount 被重新计算')
+  return todos.value.filter(todo => todo.completed).length
+})
 
 // // 方法
-// const addTodo = () => {
-//   const text = newTodo.value.trim()
-//   if (!text) return
+const addTodo = () => {
+  const text = newTodo.value.trim()
+  if (!text) return
 
-//   console.log('添加新的待办事项:', text)
+  console.log('添加新的待办事项:', text)
 
-//   const todo: Todo = {
-//     id: Date.now(),
-//     text,
-//     completed: false,
-//     createdAt: new Date(),
-//   }
+  const todo: Todo = {
+    id: Date.now(),
+    text,
+    completed: false,
+    createdAt: new Date(),
+  }
+  debugger
+  todos.value.push(todo)
+  newTodo.value = ''
+}
 
-//   debugger
-//   todos.value.push(todo)
-//   newTodo.value = ''
-// }
-
-// const deleteTodo = (id: number) => {
-//   console.log('删除待办事项:', id)
-//   const index = todos.value.findIndex(todo => todo.id === id)
-//   if (index > -1) {
-//     todos.value.splice(index, 1)
-//   }
-// }
+const deleteTodo = (id: number) => {
+  console.log('删除待办事项:', id)
+  const index = todos.value.findIndex(todo => todo.id === id)
+  if (index > -1) {
+    todos.value.splice(index, 1)
+  }
+}
 
 // // 监听器 - 调试响应式系统的另一个好地方
 // watch(
@@ -166,42 +165,42 @@ const count = ref(0)
 // })
 
 // // 初始化数据
-// const initTodos = () => {
-//   try {
-//     const saved = localStorage.getItem('vue3-todos')
-//     if (saved) {
-//       todos.value = JSON.parse(saved)
-//       console.log('从本地存储加载待办事项:', todos.value)
-//     }
-//   } catch (error) {
-//     console.error('加载本地数据失败:', error)
-//   }
+const initTodos = () => {
+  try {
+    const saved = localStorage.getItem('vue3-todos')
+    if (saved) {
+      todos.value = JSON.parse(saved)
+      console.log('从本地存储加载待办事项:', todos.value)
+    }
+  } catch (error) {
+    console.error('加载本地数据失败:', error)
+  }
+  //
+  // 如果没有数据，添加一些示例数据
+  if (todos.value.length === 0) {
+    todos.value = [
+      {
+        id: 1,
+        text: '学习 Vue 3 Composition API',
+        completed: false,
+        createdAt: new Date(),
+      },
+      {
+        id: 2,
+        text: '调试 Vue 3 响应式系统源码',
+        completed: false,
+        createdAt: new Date(),
+      },
+      {
+        id: 3,
+        text: '理解虚拟 DOM 工作原理',
+        completed: true,
+        createdAt: new Date(),
+      },
+    ]
+  }
+}
 
-//   // 如果没有数据，添加一些示例数据
-//   if (todos.value.length === 0) {
-//     todos.value = [
-//       {
-//         id: 1,
-//         text: '学习 Vue 3 Composition API',
-//         completed: false,
-//         createdAt: new Date(),
-//       },
-//       {
-//         id: 2,
-//         text: '调试 Vue 3 响应式系统源码',
-//         completed: false,
-//         createdAt: new Date(),
-//       },
-//       {
-//         id: 3,
-//         text: '理解虚拟 DOM 工作原理',
-//         completed: true,
-//         createdAt: new Date(),
-//       },
-//     ]
-//   }
-// }
-
-// // 组件挂载时初始化
-// initTodos()
+// 组件挂载时初始化
+initTodos()
 </script>
