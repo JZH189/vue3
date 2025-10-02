@@ -99,8 +99,6 @@ const filters = [
 
 // // 计算属性 - 这里是调试响应式系统的好地方
 const filteredTodos = computed(() => {
-  console.log('计算属性 filteredTodos 被重新计算')
-
   switch (currentFilter.value) {
     case 'active':
       return todos.value.filter(todo => !todo.completed)
@@ -112,7 +110,6 @@ const filteredTodos = computed(() => {
 })
 
 const completedCount = computed(() => {
-  console.log('计算属性 completedCount 被重新计算')
   return todos.value.filter(todo => todo.completed).length
 })
 
@@ -121,21 +118,17 @@ const addTodo = () => {
   const text = newTodo.value.trim()
   if (!text) return
 
-  console.log('添加新的待办事项:', text)
-
   const todo: Todo = {
     id: Date.now(),
     text,
     completed: false,
     createdAt: new Date(),
   }
-  debugger
   todos.value.push(todo)
   newTodo.value = ''
 }
 
 const deleteTodo = (id: number) => {
-  console.log('删除待办事项:', id)
   const index = todos.value.findIndex(todo => todo.id === id)
   if (index > -1) {
     todos.value.splice(index, 1)
@@ -193,13 +186,6 @@ const initTodos = () => {
     ]
   }
 }
-
-watchEffect(() => {
-  // for (const todo of todos.value) {
-  //   console.log('todo:', todo)
-  // }
-  todos.value.entries()
-})
 
 // 组件挂载时初始化
 initTodos()
