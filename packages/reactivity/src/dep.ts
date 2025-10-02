@@ -464,12 +464,25 @@ export function track(target: object, type: TrackOpTypes, key: unknown): void {
 }
 
 /**
- * Finds all deps associated with the target (or a specific property) and
- * triggers the effects stored within.
+ * 响应式更新触发函数 - Vue 3 响应式系统的核心函数
+ * 负责根据不同的操作类型触发相关的响应式副作用
+ * 实现了精确的依赖通知机制，确保只有相关的 effect 被执行
  *
- * @param target - The reactive object.
- * @param type - Defines the type of the operation that needs to trigger effects.
- * @param key - Can be used to target a specific reactive property in the target object.
+ * 功能特性：
+ * - 支持多种操作类型：ADD、SET、DELETE、CLEAR
+ * - 对数组和 Map/Set 集合类型进行特化处理
+ * - 支持批量更新优化，提高性能
+ * - 在开发模式下提供详细的调试信息
+ *
+ * 查找与目标对象（或特定属性）相关的所有依赖，
+ * 并触发其中存储的副作用。
+ *
+ * @param target 响应式对象的原始目标，指定哪个响应式对象的副作用应该被执行
+ * @param type 操作类型，定义了需要触发副作用的操作类型
+ * @param key 可选，可用于定位目标对象中的特定响应式属性
+ * @param newValue 可选，新设置的值
+ * @param oldValue 可选，原有的值
+ * @param oldTarget 可选，用于 Map/Set 类型的原始目标对象
  */
 export function trigger(
   target: object,
@@ -479,25 +492,32 @@ export function trigger(
   oldValue?: unknown,
   oldTarget?: Map<unknown, unknown> | Set<unknown>,
 ): void {
+  // 从全局依赖映射表中获取目标对象的依赖映射
   const depsMap = targetMap.get(target)
+
+  // 如果目标对象从未被追踪，则无需触发任何副作用
   if (!depsMap) {
-    // never been tracked
+    // 增加全局版本号，用于标记系统状态变化
+    // 这有助于某些优化策略的实现
     globalVersion++
     return
   }
 
+  // 定义内部辅助函数，用于执行单个依赖的所有副作用
   const run = (dep: Dep | undefined) => {
     if (dep) {
       if (__DEV__) {
+        // 开发模式下，传递详细的调试信息以便进行问题诊断
         dep.trigger({
-          target,
-          type,
-          key,
-          newValue,
-          oldValue,
-          oldTarget,
+          target, // 目标对象
+          type, // 操作类型
+          key, // 变化的属性键
+          newValue, // 新值
+          oldValue, // 旧值
+          oldTarget, // 原始目标对象（针对 Map/Set）
         })
       } else {
+        // 生产模式下，只调用简化的 trigger 方法，提高性能
         dep.trigger()
       }
     }
@@ -505,66 +525,86 @@ export function trigger(
 
   startBatch()
 
+  // 根据不同的操作类型执行不同的触发逻辑
   if (type === TriggerOpTypes.CLEAR) {
-    // collection being cleared
-    // trigger all effects for target
+    // 集合被清空的情况（如 Map.clear() 或 Set.clear()）
+    // 需要触发目标对象的所有副作用，因为所有元素都被影响
+    //(value, key, map) => void
     depsMap.forEach(run)
   } else {
+    // 缓存目标对象的类型检查结果，避免重复计算
     const targetIsArray = isArray(target)
+    // 检查是否为数组索引操作（数组 + 整数键）
     const isArrayIndex = targetIsArray && isIntegerKey(key)
 
+    // 特殊处理数组长度变化的情况
     if (targetIsArray && key === 'length') {
+      // 当数组长度发生变化时，需要特殊处理
       const newLength = Number(newValue)
+
+      // 遍历所有依赖，检查哪些需要被触发
       depsMap.forEach((dep, key) => {
         if (
-          key === 'length' ||
-          key === ARRAY_ITERATE_KEY ||
-          (!isSymbol(key) && key >= newLength)
+          key === 'length' || // length 属性本身的依赖
+          key === ARRAY_ITERATE_KEY || // 数组迭代操作的依赖
+          (!isSymbol(key) && key >= newLength) // 被删除的索引位置的依赖
         ) {
           run(dep)
         }
       })
     } else {
-      // schedule runs for SET | ADD | DELETE
-      /**
-       *void 0 在 Vue 3 源码中的使用体现了：
-        代码的健壮性：确保获得真正的 undefined
-        性能考虑：代码压缩时更短
-        编程习惯：许多大型 JavaScript 库都采用这种写法
-        向后兼容：确保在各种环境下都能正常工作
+      // 处理 SET | ADD | DELETE 操作的触发逻辑
+      /*
+       * 使用 void 0 而不是 undefined 的原因：
+       * 1. 代码的健壮性：确保获得真正的 undefined
+       * 2. 性能考虑：代码压缩时更短
+       * 3. 编程习惯：许多大型 JavaScript 库都采用这种写法
+       * 4. 向后兼容：确保在各种环境下都能正常工作
        */
+      // 触发特定属性键的依赖（如果存在）
+      // 同时处理 undefined 键的情况（用于某些特殊场景）
       if (key !== void 0 || depsMap.has(void 0)) {
         run(depsMap.get(key))
       }
 
-      // schedule ARRAY_ITERATE for any numeric key change (length is handled above)
+      // 对于数组索引的数值变化，需要触发数组迭代相关的副作用
+      // 注意：length 属性的处理在上面已经完成
       if (isArrayIndex) {
         run(depsMap.get(ARRAY_ITERATE_KEY))
       }
 
-      // also run for iteration key on ADD | DELETE | Map.SET
+      // 根据具体的操作类型执行相应的迭代键触发逻辑
+      // 处理 ADD | DELETE | Map.SET 操作的迭代相关副作用
       switch (type) {
         case TriggerOpTypes.ADD:
           if (!targetIsArray) {
+            // 对象添加属性：触发对象迭代相关的副作用
             run(depsMap.get(ITERATE_KEY))
             if (isMap(target)) {
+              // Map 类型还需要触发键迭代相关的副作用
               run(depsMap.get(MAP_KEY_ITERATE_KEY))
             }
           } else if (isArrayIndex) {
-            // new index added to array -> length changes
+            // 数组添加新索引 -> 引起长度变化
+            // 需要触发 length 属性相关的副作用
             run(depsMap.get('length'))
           }
           break
+
         case TriggerOpTypes.DELETE:
           if (!targetIsArray) {
+            // 对象删除属性：触发对象迭代相关的副作用
             run(depsMap.get(ITERATE_KEY))
             if (isMap(target)) {
+              // Map 类型还需要触发键迭代相关的副作用
               run(depsMap.get(MAP_KEY_ITERATE_KEY))
             }
           }
           break
+
         case TriggerOpTypes.SET:
           if (isMap(target)) {
+            // Map 设置操作：可能会影响迭代结果
             run(depsMap.get(ITERATE_KEY))
           }
           break
@@ -572,6 +612,8 @@ export function trigger(
     }
   }
 
+  // 结束批量更新，此时所有的响应式副作用将被除重并执行
+  // 这是性能优化的关键，避免了同一个 effect 在一次操作中被多次执行
   endBatch()
 }
 

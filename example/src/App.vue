@@ -195,9 +195,10 @@ const initTodos = () => {
 }
 
 watchEffect(() => {
-  for (const todo of todos.value) {
-    console.log('todo:', todo)
-  }
+  // for (const todo of todos.value) {
+  //   console.log('todo:', todo)
+  // }
+  todos.value.entries()
 })
 
 // 组件挂载时初始化

@@ -5,9 +5,9 @@ import { ARRAY_ITERATE_KEY, track } from './dep'
 import { isArray } from '@vue/shared'
 
 /**
- * Track array iteration and return:
- * - if input is reactive: a cloned raw array with reactive values
- * - if input is non-reactive or shallowReactive: the original raw array
+ * 跟踪数组迭代并返回：
+ *  -如果输入是反应性的：具有反应性值的克隆的原始阵列
+ *  -如果输入无反应性或浅反应性：原始原始数组
  */
 export function reactiveReadArray<T>(array: T[]): T[] {
   const raw = toRaw(array)
@@ -50,6 +50,10 @@ export const arrayInstrumentations: Record<string | symbol, Function> = <any>{
     )
   },
 
+  /**
+   * 拦截响应式数组的 Array.prototype.entries() 方法
+   * entries() 是原生数组方法，返回一个包含数组中每个索引和值的键值对的迭代器
+   */
   entries() {
     return iterator(this, 'entries', (value: [number, unknown]) => {
       value[1] = toReactive(value[1])
