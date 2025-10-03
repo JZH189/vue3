@@ -23,7 +23,9 @@ export interface Target {
   [ReactiveFlags.RAW]?: any
 }
 
+//全局的响应式缓存
 export const reactiveMap: WeakMap<Target, any> = new WeakMap<Target, any>()
+//浅层的响应式缓存
 export const shallowReactiveMap: WeakMap<Target, any> = new WeakMap<
   Target,
   any

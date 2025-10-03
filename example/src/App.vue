@@ -79,13 +79,6 @@ interface Todo {
   createdAt: Date
 }
 
-// 响应式数据
-// const count = ref(0)
-
-// const test = reactive({ test: 'test' })
-// // const rawTest = toRaw(test)
-// const test1 = reactive(test)
-// console.log('test1:', test1)
 const newTodo = ref('')
 const todos = ref<Todo[]>([])
 const currentFilter = ref<'all' | 'active' | 'completed'>('all')
@@ -135,21 +128,6 @@ const deleteTodo = (id: number) => {
   }
 }
 
-// // 监听器 - 调试响应式系统的另一个好地方
-// watch(
-//   todos,
-//   newTodos => {
-//     console.log('todos 数组发生变化:', newTodos)
-//     // 这里可以设置断点来观察响应式系统如何工作
-//     localStorage.setItem('vue3-todos', JSON.stringify(newTodos))
-//   },
-//   { deep: true },
-// )
-
-// watch(currentFilter, newFilter => {
-//   console.log('筛选器变化:', newFilter)
-// })
-
 // // 初始化数据
 const initTodos = () => {
   try {
@@ -161,7 +139,6 @@ const initTodos = () => {
   } catch (error) {
     console.error('加载本地数据失败:', error)
   }
-  //
   // 如果没有数据，添加一些示例数据
   if (todos.value.length === 0) {
     todos.value = [
