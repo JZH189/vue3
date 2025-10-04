@@ -368,13 +368,28 @@ let batchDepth = 0
 let batchedSub: Subscriber | undefined
 let batchedComputed: Subscriber | undefined
 
+/**
+ * 将订阅者添加到批处理队列中
+ * 这是响应式系统批处理机制的入口函数，用于收集需要延迟执行的副作用和计算属性
+ *
+ * @param sub 要添加到批处理队列的订阅者（副作用或计算属性）
+ * @param isComputed 是否为计算属性，默认为 false
+ */
 export function batch(sub: Subscriber, isComputed = false): void {
+  // 为订阅者添加 NOTIFIED 标志，表示该订阅者已被通知但尚未执行
+  // 这个标志用于防止同一个订阅者在同一批次中被重复添加
   sub.flags |= EffectFlags.NOTIFIED
+
+  // 如果是计算属性，添加到计算属性专用的批处理队列
   if (isComputed) {
+    // 使用链表结构存储，新的计算属性插入到队列头部
     sub.next = batchedComputed
     batchedComputed = sub
     return
   }
+
+  // 如果是普通副作用，添加到副作用批处理队列
+  // 同样使用链表结构，新的副作用插入到队列头部
   sub.next = batchedSub
   batchedSub = sub
 }
@@ -390,35 +405,54 @@ export function startBatch(): void {
  * Run batched effects when all batches have ended
  * @internal
  */
+/**
+ * 结束批处理操作，清理批处理队列并执行所有待处理的副作用
+ * 这是响应式系统批处理机制的核心函数，确保副作用的正确执行顺序
+ */
 export function endBatch(): void {
+  // 递减批处理深度计数器，如果还有嵌套的批处理未完成则直接返回
   if (--batchDepth > 0) {
     return
   }
 
+  // 首先处理批处理的计算属性队列
   if (batchedComputed) {
     let e: Subscriber | undefined = batchedComputed
+    // 清空全局计算属性队列，防止在处理过程中新的计算属性被添加到当前批次
     batchedComputed = undefined
+    // 遍历计算属性链表，清理每个计算属性的状态
     while (e) {
       const next: Subscriber | undefined = e.next
+      // 断开链表连接，防止内存泄漏
       e.next = undefined
+      // 清除 NOTIFIED 标志，表示该计算属性已被处理
       e.flags &= ~EffectFlags.NOTIFIED
       e = next
     }
   }
 
+  // 用于收集执行过程中的错误
   let error: unknown
+  // 处理批处理的副作用队列，可能需要多轮处理（因为副作用执行可能产生新的副作用）
   while (batchedSub) {
     let e: Subscriber | undefined = batchedSub
+    // 清空全局副作用队列，为当前轮次的处理做准备
     batchedSub = undefined
+    // 遍历副作用链表
     while (e) {
       const next: Subscriber | undefined = e.next
+      // 断开链表连接，防止内存泄漏
       e.next = undefined
+      // 清除 NOTIFIED 标志，表示该副作用已被处理
       e.flags &= ~EffectFlags.NOTIFIED
+      // 只有当副作用处于激活状态时才执行
       if (e.flags & EffectFlags.ACTIVE) {
         try {
-          // ACTIVE flag is effect-only
+          // ACTIVE 标志仅用于副作用（ReactiveEffect），计算属性不会有此标志
+          // 执行副作用的触发器，这可能会导致新的依赖收集和触发
           ;(e as ReactiveEffect).trigger()
         } catch (err) {
+          // 收集第一个错误，但继续处理剩余的副作用
           if (!error) error = err
         }
       }
@@ -426,6 +460,7 @@ export function endBatch(): void {
     }
   }
 
+  // 如果在执行过程中有错误发生，在所有副作用处理完成后抛出
   if (error) throw error
 }
 
