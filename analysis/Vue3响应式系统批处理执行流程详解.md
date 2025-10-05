@@ -21,6 +21,14 @@ Vue 3 的响应式系统采用了批处理机制来优化性能，避免在同�
 - **Dep**: 依赖管理器，维护订阅者列表
 - **Link**: 连接 Dep 和 Subscriber 的桥梁
 
+### 3. 批处理机制核心原理
+
+批处理机制的核心在于：
+
+1. **订阅者通知阶段**: 在 Dep.notify() 中遍历订阅者，调用各自的 notify() 方法
+2. **队列收集阶段**: 订阅者的 ReactiveEffect.notify() 方法调用 batch(this) 函数，将自己加入批处理队列
+3. **批量执行阶段**: 在 endBatch() 中执行所有收集到的副作用
+
 ## 完整执行流程
 
 ### 第一阶段：数据改变触发响应式更新
@@ -52,7 +60,7 @@ if (hadKey) {
 #### 1.2 触发更新
 
 ```typescript
-// trigger 函数的核心逻辑
+// trigger 函数的真实源码实现
 export function trigger(
   target: object,
   type: TriggerOpTypes,
@@ -61,28 +69,113 @@ export function trigger(
   oldValue?: unknown,
   oldTarget?: Map<unknown, unknown> | Set<unknown>,
 ): void {
+  // 从全局依赖映射表中获取目标对象的依赖映射
   const depsMap = targetMap.get(target)
+
+  // 如目标对象从未被追踪，则无需触发任何副作用
   if (!depsMap) {
+    // 增加全局版本号，用于标记系统状态变化
+    globalVersion++
     return
   }
 
-  const deps: Dep[] = []
-
-  // 收集需要触发的依赖
-  if (key !== void 0) {
-    const dep = depsMap.get(key)
+  // 定义内部辅助函数，用于执行单个依赖的所有副作用
+  const run = (dep: Dep | undefined) => {
     if (dep) {
-      deps.push(dep)
+      if (__DEV__) {
+        // 开发模式下，传递详细的调试信息
+        dep.trigger({
+          target,
+          type,
+          key,
+          newValue,
+          oldValue,
+          oldTarget,
+        })
+      } else {
+        // 生产模式下，只调用简化的 trigger 方法
+        dep.trigger()
+      }
     }
   }
 
-  // 批量触发依赖
   startBatch()
-  for (const dep of deps) {
-    if (dep) {
-      dep.trigger()
+
+  // 根据不同的操作类型执行不同的触发逻辑
+  if (type === TriggerOpTypes.CLEAR) {
+    // 集合被清空的情况（如 Map.clear() 或 Set.clear()）
+    // 需要触发目标对象的所有副作用
+    depsMap.forEach(run)
+  } else {
+    // 缓存目标对象的类型检查结果
+    const targetIsArray = isArray(target)
+    const isArrayIndex = targetIsArray && isIntegerKey(key)
+
+    // 特殊处理数组长度变化的情况
+    if (targetIsArray && key === 'length') {
+      const newLength = Number(newValue)
+
+      // 遍历所有依赖，检查哪些需要被触发
+      depsMap.forEach((dep, key) => {
+        if (
+          key === 'length' || // length 属性本身的依赖
+          key === ARRAY_ITERATE_KEY || // 数组迭代操作的依赖
+          (!isSymbol(key) && key >= newLength) // 被删除的索引位置的依赖
+        ) {
+          run(dep)
+        }
+      })
+    } else {
+      // 处理 SET | ADD | DELETE 操作的触发逻辑
+
+      // 触发特定属性键的依赖（如果存在）
+      if (key !== void 0 || depsMap.has(void 0)) {
+        run(depsMap.get(key))
+      }
+
+      // 对于数组索引的数值变化，需要触发数组迭代相关的副作用
+      if (isArrayIndex) {
+        run(depsMap.get(ARRAY_ITERATE_KEY))
+      }
+
+      // 根据具体的操作类型执行相应的迭代键触发逻辑
+      switch (type) {
+        case TriggerOpTypes.ADD:
+          if (!targetIsArray) {
+            // 对象添加属性：触发对象迭代相关的副作用
+            run(depsMap.get(ITERATE_KEY))
+            if (isMap(target)) {
+              // Map 类型还需要触发键迭代相关的副作用
+              run(depsMap.get(MAP_KEY_ITERATE_KEY))
+            }
+          } else if (isArrayIndex) {
+            // 数组添加新索引 -> 引起长度变化
+            run(depsMap.get('length'))
+          }
+          break
+
+        case TriggerOpTypes.DELETE:
+          if (!targetIsArray) {
+            // 对象删除属性：触发对象迭代相关的副作用
+            run(depsMap.get(ITERATE_KEY))
+            if (isMap(target)) {
+              // Map 类型还需要触发键迭代相关的副作用
+              run(depsMap.get(MAP_KEY_ITERATE_KEY))
+            }
+          }
+          break
+
+        case TriggerOpTypes.SET:
+          if (isMap(target)) {
+            // Map 设置操作：可能会影响迭代结果
+            run(depsMap.get(ITERATE_KEY))
+          }
+          break
+      }
     }
   }
+
+  // 结束批量更新
   endBatch()
 }
 ```
@@ -111,45 +204,61 @@ export function startBatch(): void {
 
 ```mermaid
 graph TD
-    A[Dep.trigger 调用] --> B[遍历订阅者链表]
-    B --> C[检查订阅者状态]
-    C --> D{是否已被通知?}
-    D -->|否| E[调用 batch 函数]
-    D -->|是| F[跳过该订阅者]
-    E --> G[添加到批处理队列]
+    A[Dep.trigger 调用] --> B[Dep.notify 调用]
+    B --> C[遍历订阅者链表]
+    C --> D{订阅者类型?}
+    D -->|ReactiveEffect| E[ReactiveEffect.notify]
+    D -->|ComputedRefImpl| F[ComputedRefImpl.notify]
+    E --> G[调用 batch 函数]
+    F --> G
+    G --> H[添加到批处理队列]
 ```
 
 #### 3.1 Dep 触发机制
 
 ```typescript
 /**
- * 触发依赖的所有订阅者
+ * Dep.trigger() 方法：更新版本号并通知订阅者
+ */
+trigger(debugInfo?: DebuggerEventExtraInfo): void {
+  // 更新本地版本
+  this.version++
+  // 更新全局版本
+  globalVersion++
+  // 通知所有订阅者
+  this.notify(debugInfo)
+}
+
+/**
+ * Dep.notify() 方法：实际的批处理逻辑
  * 采用链表遍历确保按原始顺序处理
  */
-trigger(): void {
+notify(debugInfo?: DebuggerEventExtraInfo): void {
   startBatch()
   try {
-    // 遍历订阅者链表，按原始顺序处理
-    for (let head = this.subsHead; head; head = head.nextSub) {
-      // 检查订阅者是否需要通知
-      if (head.flags & SubscriberFlags.NOTIFIED) {
-        continue // 已被通知，跳过
+    if (__DEV__) {
+      // 开发模式：按原始顺序执行调试钩子
+      for (let head = this.subsHead; head; head = head.nextSub) {
+        if (head.sub.onTrigger && !(head.sub.flags & EffectFlags.NOTIFIED)) {
+          head.sub.onTrigger({
+            effect: head.sub,
+            target: this.target,
+            key: this.key,
+            type: this.type,
+            newValue: this.newValue,
+            oldValue: this.oldValue
+          })
+        }
       }
+    }
 
-      // 执行调试钩子（如果存在）
-      if (head.onTrigger && !(head.flags & SubscriberFlags.NOTIFIED)) {
-        head.onTrigger({
-          effect: head,
-          target: this.target,
-          key: this.key,
-          type: this.type,
-          newValue: this.newValue,
-          oldValue: this.oldValue
-        })
+    // 关键步骤：遍历订阅者并调用各自的 notify() 方法
+    for (let link = this.subs; link; link = link.prevSub) {
+      // 调用订阅者的 notify() 方法
+      if (link.sub.notify()) {
+        // 如果订阅者是 computed，需要继续通知其依赖项
+        ;(link.sub as ComputedRefImpl).dep.notify()
       }
-
-      // 添加到批处理队列
-      batch(head, head.flags & SubscriberFlags.COMPUTED)
     }
   } finally {
     endBatch()
@@ -157,28 +266,56 @@ trigger(): void {
 }
 ```
 
-#### 3.2 批处理队列管理
+#### 3.2 订阅者通知机制
 
 ```typescript
 /**
- * 将订阅者添加到批处理队列中
- * 这是响应式系统批处理机制的入口函数，用于收集需要延迟执行的副作用和计算属性
+ * ReactiveEffect.notify() 方法：将副作用加入批处理队列
+ */
+notify(): void {
+  // 防止递归执行
+  if (
+    this.flags & EffectFlags.RUNNING &&
+    !(this.flags & EffectFlags.ALLOW_RECURSE)
+  ) {
+    return
+  }
+  // 如果尚未被通知，则加入批处理队列
+  if (!(this.flags & EffectFlags.NOTIFIED)) {
+    batch(this) // 这里调用 batch 函数
+  }
+}
+
+/**
+ * ComputedRefImpl.notify() 方法：将计算属性加入批处理队列
+ */
+notify(): true | void {
+  this.flags |= EffectFlags.DIRTY
+  if (
+    !(this.flags & EffectFlags.NOTIFIED) &&
+    // 避免无限递归
+    activeSub !== this
+  ) {
+    batch(this, true) // 计算属性的 batch 调用
+    return true
+  }
+}
+
+/**
+ * batch 函数：将订阅者添加到批处理队列中
  */
 export function batch(sub: Subscriber, isComputed = false): void {
   // 为订阅者添加 NOTIFIED 标志，表示该订阅者已被通知但尚未执行
-  // 这个标志用于防止同一个订阅者在同一批次中被重复添加
   sub.flags |= EffectFlags.NOTIFIED
 
   // 如果是计算属性，添加到计算属性专用的批处理队列
   if (isComputed) {
-    // 使用链表结构存储，新的计算属性插入到队列头部
     sub.next = batchedComputed
     batchedComputed = sub
     return
   }
 
   // 如果是普通副作用，添加到副作用批处理队列
-  // 同样使用链表结构，新的副作用插入到队列头部
   sub.next = batchedSub
   batchedSub = sub
 }
@@ -209,10 +346,11 @@ export function endBatch(): void {
     return
   }
 
-  // 首先处理批处理的计算属性队列
+  // 第一阶段：处理批处理的计算属性队列（只清理标志，不执行）
+  // 计算属性采用懒计算机制，不在这里执行，而是在被访问时才重新计算
   if (batchedComputed) {
     let e: Subscriber | undefined = batchedComputed
-    // 清空全局计算属性队列，防止在处理过程中新的计算属性被添加到当前批次
+    // 清空全局计算属性队列
     batchedComputed = undefined
     // 遍历计算属性链表，清理每个计算属性的状态
     while (e) {
@@ -225,25 +363,24 @@ export function endBatch(): void {
     }
   }
 
-  // 用于收集执行过程中的错误
+  // 第二阶段：处理批处理的副作用队列（实际执行）
   let error: unknown
-  // 处理批处理的副作用队列，可能需要多轮处理（因为副作用执行可能产生新的副作用）
+  // 处理批处理的副作用队列，可能需要多轮处理
   while (batchedSub) {
     let e: Subscriber | undefined = batchedSub
-    // 清空全局副作用队列，为当前轮次的处理做准备
+    // 清空全局副作用队列
     batchedSub = undefined
     // 遍历副作用链表
     while (e) {
       const next: Subscriber | undefined = e.next
       // 断开链表连接，防止内存泄漏
       e.next = undefined
-      // 清除 NOTIFIED 标志，表示该副作用已被处理
+      // 清除 NOTIFIED 标志
       e.flags &= ~EffectFlags.NOTIFIED
       // 只有当副作用处于激活状态时才执行
       if (e.flags & EffectFlags.ACTIVE) {
         try {
-          // ACTIVE 标志仅用于副作用（ReactiveEffect），计算属性不会有此标志
-          // 执行副作用的触发器，这可能会导致新的依赖收集和触发
+          // 执行 ReactiveEffect.trigger() 方法
           ;(e as ReactiveEffect).trigger()
         } catch (err) {
           // 收集第一个错误，但继续处理剩余的副作用
@@ -280,15 +417,17 @@ sequenceDiagram
     Note over Batch: batchDepth++
 
     Trigger->>Dep: 调用 dep.trigger()
+    Dep->>Dep: 更新版本号
+    Dep->>Dep: 调用 notify()
 
     loop 遍历订阅者
-        Dep->>Dep: 检查 NOTIFIED 标志
+        Dep->>Effect: 调用 subscriber.notify()
+        Effect->>Effect: 检查 NOTIFIED 标志
         alt 未被通知
-            Dep->>Dep: 执行调试钩子 onTrigger
-            Dep->>Batch: 调用 batch(subscriber)
+            Effect->>Batch: 调用 batch(subscriber)
             Note over Batch: 添加到队列，设置 NOTIFIED 标志
         else 已被通知
-            Note over Dep: 跳过该订阅者
+            Note over Effect: 跳过该订阅者
         end
     end
 
@@ -297,7 +436,7 @@ sequenceDiagram
     alt batchDepth > 0
         Note over Batch: 嵌套批处理，直接返回
     else batchDepth == 0
-        Note over Batch: 处理计算属性队列
+        Note over Batch: 处理计算属性队列（只清理标志）
         loop 处理 batchedComputed
             Batch->>Batch: 清除 NOTIFIED 标志
         end
@@ -316,34 +455,46 @@ sequenceDiagram
 
 #### 1. trigger 函数
 
-**位置**: `packages/reactivity/src/effect.ts`
-**作用**: 响应式更新的入口点，负责启动批处理并触发相关依赖
+**位置**: `packages/reactivity/src/dep.ts`
+**作用**: 响应式更新的入口点，负责收集依赖并触发相关依赖
 
 ```typescript
 // 核心调用流程
-trigger() -> startBatch() -> dep.trigger() -> endBatch()
+trigger() -> 收集依赖 -> startBatch() -> dep.trigger() -> endBatch()
 ```
 
-#### 2. startBatch 函数
+#### 2. Dep.trigger 方法
 
-**位置**: `packages/reactivity/src/effect.ts`
-**作用**: 开始批处理，支持嵌套
+**位置**: `packages/reactivity/src/dep.ts`
+**作用**: 更新版本号并调用 notify 方法
 
 ```typescript
-export function startBatch(): void {
-  batchDepth++
-}
+// Dep.trigger() 只做三件事：
+// 1. 更新本地版本号
+// 2. 更新全局版本号
+// 3. 调用 notify() 方法
 ```
 
-#### 3. batch 函数
+#### 3. Dep.notify 方法
 
-**位置**: `packages/reactivity/src/effect.ts`
-**作用**: 将订阅者添加到相应的批处理队列
+**位置**: `packages/reactivity/src/dep.ts`
+**作用**: 实际的批处理逻辑，遍历订阅者并调用各自的 notify 方法
 
 ```typescript
-// 调用时机：在 Dep.trigger() 遍历订阅者时被调用
-// 队列分类：计算属性队列 vs 副作用队列
-// 防重复：通过 NOTIFIED 标志避免重复添加
+// 调用时机：在 Dep.trigger() 中被调用
+// 批处理管理：在这里调用 startBatch() 和 endBatch()
+// 订阅者通知：调用每个订阅者的 notify() 方法
+```
+
+#### 4. ReactiveEffect.notify / ComputedRefImpl.notify
+
+**位置**: `packages/reactivity/src/effect.ts` / `packages/reactivity/src/computed.ts`
+**作用**: 将订阅者加入批处理队列
+
+```typescript
+// 调用时机：在 Dep.notify() 遍历订阅者时被调用
+// 批处理入口：在这里调用 batch() 函数
+// 状态管理：检查和设置 NOTIFIED 标志
 ```
 
 #### 4. endBatch 函数
@@ -412,10 +563,50 @@ state.b = 20
 
 Vue 3 的批处理机制通过以下关键设计实现了高性能的响应式更新：
 
-1. **分层设计**: startBatch/endBatch 控制批处理生命周期
-2. **队列管理**: batch 函数负责收集待执行的副作用
-3. **优先级处理**: 计算属性优先于普通副作用执行
-4. **防重复机制**: NOTIFIED 标志避免重复执行
-5. **错误处理**: 收集错误但不中断批处理流程
+1. **分层设计**:
+
+   - `trigger()` 函数负责收集依赖并开始批处理
+   - `Dep.trigger()` 和 `Dep.notify()` 负责版本管理和订阅者通知
+   - `ReactiveEffect.notify()` / `ComputedRefImpl.notify()` 负责将订阅者加入批处理队列
+   - `endBatch()` 负责执行所有收集到的副作用
+
+2. **队列管理**:
+
+   - `batch()` 函数将订阅者分类收集到不同的队列中
+   - 计算属性和副作用分别处理，优先级明确
+
+3. **防重复机制**:
+
+   - `NOTIFIED` 标志避免重复执行
+   - 状态管理确保一致性
+
+4. **错误处理**:
+
+   - 收集错误但不中断批处理流程
+   - 统一错误处理机制
+
+5. **内存管理**:
+   - 及时断开链表引用防止内存泄漏
+   - 清除标志重置状态
 
 这种设计确保了在复杂的响应式场景下，Vue 3 能够高效、有序地处理数据变化，为用户提供流畅的使用体验。
+
+## 关键调用链路总结
+
+正确的调用链路应该是：
+
+```
+响应式数据修改
+→ Proxy 拦截
+→ trigger() 函数
+→ startBatch()
+→ Dep.trigger()
+→ Dep.notify()
+→ 遍历订阅者
+→ 订阅者.notify()
+→ batch() 函数
+→ endBatch()
+→ 执行副作用
+```
+
+这个流程中，每个环节都有其特定的职责，共同实现了高效的批处理机制。
