@@ -350,17 +350,36 @@ function searchProxy(
   return res
 }
 
-// instrument length-altering mutation methods to avoid length being tracked
-// which leads to infinite loops in some cases (#2137)
+/**
+ * 处理数组变更方法的工具函数，避免长度属性被追踪导致无限循环
+ *
+ * 背景：当数组变更方法（如 push、splice）被调用时，会修改数组的 length 属性。
+ * 如果 length 属性也被响应式追踪，就会触发依赖收集，可能导致无限循环（issue #2137）。
+ *
+ * 解决方案：在执行数组变更方法时，暂时停止依赖追踪，避免 length 属性的变化
+ * 被响应式系统捕获，从而防止无限循环的发生。
+ *
+ * @param self 要操作的数组对象
+ * @param method 要调用的数组方法名（如 'push', 'splice' 等）
+ * @param args 传递给数组方法的参数列表
+ * @returns 数组方法执行的结果
+ */
 function noTracking(
   self: unknown[],
   method: keyof Array<any>,
   args: unknown[] = [],
 ) {
+  // 暂停依赖追踪，防止在执行数组方法时收集不必要的依赖
   pauseTracking()
+  // 开始批处理，将多个响应式更新合并到一个批次中执行
   startBatch()
+  // 获取原始数组对象（非代理对象）并调用相应的数组方法
+  // 使用 toRaw 确保操作的是原始数组，避免代理对象的额外开销
   const res = (toRaw(self) as any)[method].apply(self, args)
+  // 结束批处理，触发所有累积的响应式更新
   endBatch()
+  // 恢复依赖追踪到之前的状态
   resetTracking()
+  // 返回数组方法的执行结果
   return res
 }
