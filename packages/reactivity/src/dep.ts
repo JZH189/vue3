@@ -307,8 +307,8 @@ export class Dep {
       // link.prevSub 指向前一个订阅者，实现反向链表遍历
       for (let link = this.subs; link; link = link.prevSub) {
         // 调用订阅者的 notify() 方法来触发更新
-        // 对于普通 effect，notify() 返回 false
-        // 对于 computed，notify() 返回 true（标识这是一个computed属性）
+        //! 对于普通 effect，相当于执行了ReactiveEffect.notify() 然后调用了batch(this)将订阅者添加到批处理队列中.
+        //! 对于 computed，相当于执行了ComputedRefImpl.notify() 然后调用了batch(this, true)将订阅者添加到批处理队列中.返回 true（标识这是一个computed属性）
         if (link.sub.notify()) {
           // 如果 notify() 返回 true，说明这是一个 computed 属性
           // 需要继续通知 computed 自身的依赖项（computed.dep）
