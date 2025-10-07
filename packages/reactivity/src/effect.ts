@@ -390,6 +390,22 @@ export function batch(sub: Subscriber, isComputed = false): void {
 
   // 如果是普通副作用，添加到副作用批处理队列
   // 同样使用链表结构，新的副作用插入到队列头部
+  /*
+    假设有 effect1, effect2, effect3 需要执行
+    第一次调用 batch(effect1)
+    effect1.next = undefined
+    batchedSub = effect1
+
+    第二次调用 batch(effect2)  
+    effect2.next = effect1  // 指向之前的头节点
+    batchedSub = effect2    // 成为新的头节点
+
+    第三次调用 batch(effect3)
+    effect3.next = effect2  // 指向之前的头节点
+    batchedSub = effect3    // 成为新的头节点
+
+    最终链表结构： effect3 -> effect2 -> effect1 
+  */
   sub.next = batchedSub
   batchedSub = sub
 }
