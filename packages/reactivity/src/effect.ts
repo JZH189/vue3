@@ -404,7 +404,7 @@ export function batch(sub: Subscriber, isComputed = false): void {
     effect3.next = effect2  // 指向之前的头节点
     batchedSub = effect3    // 成为新的头节点
 
-    最终链表结构： effect3 -> effect2 -> effect1 
+    最终链表结构：batchedSub|batchedComputed -> effect3 -> effect2 -> effect1 
   */
   sub.next = batchedSub
   batchedSub = sub
