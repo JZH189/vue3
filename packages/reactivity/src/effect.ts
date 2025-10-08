@@ -541,31 +541,34 @@ function isDirty(sub: Subscriber): boolean {
 }
 
 /**
- * Returning false indicates the refresh failed
+ * 刷新计算属性的值，实现懒求值和缓存机制
+ * 返回 false 表示刷新失败
  * @internal
  */
 export function refreshComputed(computed: ComputedRefImpl): undefined {
+  // 如果计算属性正在跟踪依赖且不是脏值状态，则直接返回
   if (
     computed.flags & EffectFlags.TRACKING &&
     !(computed.flags & EffectFlags.DIRTY)
   ) {
     return
   }
+  // 清除脏值标志，表示即将进行重新计算
   computed.flags &= ~EffectFlags.DIRTY
 
-  // Global version fast path when no reactive changes has happened since
-  // last refresh.
+  // 全局版本号快速路径：如果自上次刷新以来没有响应式数据变化，
+  // 则直接使用缓存值
   if (computed.globalVersion === globalVersion) {
     return
   }
+  // 同步全局版本号
   computed.globalVersion = globalVersion
 
-  // In SSR there will be no render effect, so the computed has no subscriber
-  // and therefore tracks no deps, thus we cannot rely on the dirty check.
-  // Instead, computed always re-evaluate and relies on the globalVersion
-  // fast path above for caching.
-  // #12337 if computed has no deps (does not rely on any reactive data) and evaluated,
-  // there is no need to re-evaluate.
+  // 在 SSR 环境中不会有渲染副作用，所以计算属性没有订阅者
+  // 因此不能依赖脏值检查。在 SSR 中计算属性始终重新求值，
+  // 并依赖上面的 globalVersion 快速路径进行缓存。
+  // #12337 如果计算属性没有依赖（不依赖任何响应式数据）并且已经求值，
+  // 则不需要重新求值。
   if (
     !computed.isSSR &&
     computed.flags & EffectFlags.EVALUATED &&
@@ -573,29 +576,43 @@ export function refreshComputed(computed: ComputedRefImpl): undefined {
   ) {
     return
   }
+  // 设置运行标志，表示计算属性正在执行
   computed.flags |= EffectFlags.RUNNING
 
+  // 保存计算属性的依赖管理器
   const dep = computed.dep
+  // 保存当前的全局状态，以便后续恢复
   const prevSub = activeSub
   const prevShouldTrack = shouldTrack
+  // 设置当前计算属性为活跃订阅者，开启依赖收集
   activeSub = computed
   shouldTrack = true
 
   try {
+    // 准备依赖收集：将所有现有依赖标记为待验证状态
     prepareDeps(computed)
+    // 执行计算函数，获取新值实际上调用的就是用户初始化传入的getter函数
     const value = computed.fn(computed._value)
+    // 如果是初次计算或者值发生了变化
     if (dep.version === 0 || hasChanged(value, computed._value)) {
+      // 标记为已求值状态
       computed.flags |= EffectFlags.EVALUATED
+      // 更新缓存值
       computed._value = value
+      // 更新依赖版本号，通知依赖此计算属性的订阅者
       dep.version++
     }
   } catch (err) {
+    // 即使出错也要更新版本号，保证一致性
     dep.version++
     throw err
   } finally {
+    // 恢复全局状态
     activeSub = prevSub
     shouldTrack = prevShouldTrack
+    // 清理无用的依赖
     cleanupDeps(computed)
+    // 清除运行标志
     computed.flags &= ~EffectFlags.RUNNING
   }
 }
