@@ -134,7 +134,7 @@ export class Link {
    effect.deps ← Link → dep.subs
 
 5. 变更触发：
-   obj.count = newValue → dep.trigger() → 遍历 dep.subs → 通知所有 Link.sub
+   obj.count = newValue → dep.trigger() → 遍历 dep.subs → 调用sub.notify()执行batch()函数将sub.next = batchedComputed生成副作用执行链 -> 遍历副作用链执行Subscriber.trigger() 更新视图
 ```
 
 ## 4. 详细工作流程
