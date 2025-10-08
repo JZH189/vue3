@@ -452,7 +452,7 @@ export function endBatch(): void {
   // 处理批处理的副作用队列，可能需要多轮处理（因为副作用执行可能产生新的副作用）
   while (batchedSub) {
     let e: Subscriber | undefined = batchedSub
-    // 清空全局副作用队列，为当前轮次的处理做准备
+    // 清空全局副作用队列，为当前批次的处理做准备
     batchedSub = undefined
     // 遍历副作用链表
     while (e) {
