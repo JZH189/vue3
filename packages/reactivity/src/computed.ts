@@ -177,7 +177,7 @@ export class ComputedRefImpl<T = any> implements Subscriber {
    */
   set value(newValue) {
     if (this.setter) {
-      // 如果有 setter，调用它来设置值
+      // 如果有 setter，使用用户定义的setter调用。
       this.setter(newValue)
     } else if (__DEV__) {
       // 开发模式下警告尝试写入只读计算属性

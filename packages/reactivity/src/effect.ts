@@ -74,31 +74,149 @@ export enum EffectFlags {
 }
 
 /**
- * Subscriber is a type that tracks (or subscribes to) a list of deps.
+ * 订阅者接口：用于跟踪（或订阅）一系列依赖项的类型定义
+ *
+ * 这是 Vue 3 响应式系统中的核心抽象接口，所有能够订阅响应式数据变化的对象都需要实现此接口
+ * 主要实现者包括：
+ * - ReactiveEffect：副作用函数，如 watchEffect、render 函数等
+ * - ComputedRefImpl：计算属性实现
+ *
+ * 设计特点：
+ * 1. 双向链表结构：使用 deps 和 depsTail 维护依赖项的双向链表
+ * 2. 批处理支持：通过 next 指针支持批处理队列的链式管理
+ * 3. 状态管理：使用 flags 位标志高效管理订阅者的各种状态
+ * 4. 类型区分：通过 notify() 返回值区分普通副作用和计算属性
+ * 5. 调试支持：继承自 DebuggerOptions，提供开发时的调试钩子
+ *
+ * 核心职责：
+ * - 维护与响应式数据的依赖关系
+ * - 在数据变化时接收通知并执行相应的更新逻辑
+ * - 支持依赖的动态添加和清理
+ * - 参与响应式系统的批处理优化机制
  */
 export interface Subscriber extends DebuggerOptions {
   /**
-   * Head of the doubly linked list representing the deps
-   * @internal
+   * 依赖项双向链表的头节点指针
+   *
+   * 功能说明：
+   * - 指向此订阅者依赖的第一个响应式数据的链接节点
+   * - 用于遍历此订阅者的所有依赖项
+   * - 在依赖收集和清理过程中起到关键作用
+   *
+   * 数据结构：
+   * - 每个 Link 节点包含对 Dep 的引用以及前后节点的指针
+   * - 形成双向链表，支持高效的插入、删除和遍历操作
+   *
+   * 生命周期：
+   * - 在 prepareDeps 阶段准备依赖收集
+   * - 在执行过程中动态更新依赖关系
+   * - 在 cleanupDeps 阶段清理不再使用的依赖
+   *
+   * @internal 内部使用，不对外暴露
    */
   deps?: Link
+
   /**
-   * Tail of the same list
-   * @internal
+   * 依赖项双向链表的尾节点指针
+   *
+   * 功能说明：
+   * - 指向此订阅者依赖的最后一个响应式数据的链接节点
+   * - 便于在链表尾部快速插入新的依赖项
+   * - 在反向遍历依赖项时提供起始点
+   *
+   * 设计意义：
+   * - 提高依赖项插入的性能（O(1) 时间复杂度）
+   * - 支持从尾部开始的依赖清理策略
+   * - 维护链表结构的完整性
+   *
+   * 与 deps 的关系：
+   * - deps 指向链表头，depsTail 指向链表尾
+   * - 当只有一个依赖时，deps === depsTail
+   * - 当没有依赖时，两者都为 undefined
+   *
+   * @internal 内部使用，不对外暴露
    */
   depsTail?: Link
+
   /**
-   * @internal
+   * 订阅者状态标志位集合
+   *
+   * 使用位标志 (EffectFlags) 高效管理订阅者的多种状态：
+   *
+   * 常用标志位：
+   * - EffectFlags.ACTIVE: 订阅者是否处于活跃状态
+   * - EffectFlags.RUNNING: 订阅者是否正在执行中
+   * - EffectFlags.TRACKING: 是否正在进行依赖收集
+   * - EffectFlags.DIRTY: 订阅者是否需要重新执行（主要用于计算属性）
+   * - EffectFlags.NOTIFIED: 在当前批次中是否已被通知过
+   *
+   * 设计优势：
+   * - 内存效率：单个数字存储多个布尔状态
+   * - 操作高效：位运算比多个属性访问更快
+   * - 状态一致：避免状态分散导致的不一致问题
+   *
+   * 使用方式：
+   * - 设置标志：flags |= EffectFlags.RUNNING
+   * - 清除标志：flags &= ~EffectFlags.RUNNING
+   * - 检查标志：flags & EffectFlags.RUNNING
+   *
+   * @internal 内部使用，不对外暴露
    */
   flags: EffectFlags
+
   /**
-   * @internal
+   * 批处理队列中指向下一个订阅者的指针
+   *
+   * 功能说明：
+   * - 用于构建批处理执行的订阅者链表
+   * - 当多个订阅者需要在同一批次中执行时，通过此指针连接
+   * - 支持响应式系统的批处理优化机制
+   *
+   * 工作原理：
+   * - 当订阅者被添加到批处理队列时，设置 next 指针
+   * - 批处理执行时，沿着 next 指针遍历所有待执行的订阅者
+   * - 执行完成后，清空 next 指针防止内存泄漏
+   *
+   * 批处理优势：
+   * - 避免同步执行多个更新导致的性能问题
+   * - 确保更新的顺序和一致性
+   * - 减少不必要的重复计算
+   *
+   * 内存管理：
+   * - 执行完成后必须设置为 undefined
+   * - 防止形成循环引用导致内存泄漏
+   *
+   * @internal 内部使用，不对外暴露
    */
   next?: Subscriber
+
   /**
-   * returning `true` indicates it's a computed that needs to call notify
-   * on its dep too
-   * @internal
+   * 通知订阅者执行更新的核心方法
+   *
+   * 返回值语义：
+   * - 返回 true：表示这是一个计算属性 (ComputedRefImpl)
+   *   需要继续通知其自身的依赖项（computed.dep.notify()）
+   * - 返回 void：表示这是一个普通副作用 (ReactiveEffect)
+   *   只需要将自身加入批处理队列即可
+   *
+   * 执行流程：
+   * 1. 检查是否需要执行（避免重复通知）
+   * 2. 更新订阅者状态（如设置 DIRTY 标志）
+   * 3. 将订阅者添加到批处理队列
+   * 4. 返回适当的值指示后续处理
+   *
+   * 设计意义：
+   * - 统一的通知接口，支持不同类型的订阅者
+   * - 通过返回值区分处理策略，避免类型检查的开销
+   * - 支持计算属性的级联更新机制
+   *
+   * 实现要点：
+   * - 必须是幂等操作（多次调用效果相同）
+   * - 需要正确处理并发和重入情况
+   * - 要考虑调试钩子的触发时机
+   *
+   * @internal 内部使用，不对外暴露
+   * @returns true 表示是计算属性，需要继续通知其依赖项；void 表示普通副作用
    */
   notify(): true | void
 }
@@ -480,43 +598,96 @@ export function endBatch(): void {
   if (error) throw error
 }
 
+/**
+ * 为订阅者准备依赖收集，这是响应式系统执行前的关键预处理步骤
+ *
+ * 主要功能：
+ * 1. 标记所有现有依赖为待验证状态（version = -1）
+ * 2. 保存并设置依赖的活跃链接状态
+ * 3. 为后续的依赖清理机制做准备
+ *
+ * @param sub 需要准备依赖的订阅者（ReactiveEffect 或 ComputedRefImpl）
+ */
 function prepareDeps(sub: Subscriber) {
-  // Prepare deps for tracking, starting from the head
+  // 从订阅者的依赖链表头部开始，遍历所有依赖项
+  // sub.deps 是依赖链表的头节点，link.nextDep 指向下一个依赖
   for (let link = sub.deps; link; link = link.nextDep) {
-    // set all previous deps' (if any) version to -1 so that we can track
-    // which ones are unused after the run
+    // 将所有现有依赖的版本标记为 -1（待验证状态）
+    // 这样可以在执行后追踪哪些依赖在本次运行中未被使用
+    // 未使用的依赖（version 仍为 -1）将在 cleanupDeps 中被清理
     link.version = -1
-    // store previous active sub if link was being used in another context
+
+    // 保存当前依赖的活跃链接状态，防止在嵌套执行时丢失上下文
+    // 这在嵌套 effect 或 computed 执行时非常重要
     link.prevActiveLink = link.dep.activeLink
+
+    // 将当前链接设置为该依赖的活跃链接
+    // 这样在依赖收集时，Dep.track() 就能找到正确的 Link 实例
     link.dep.activeLink = link
   }
 }
 
+/**
+ * 清理订阅者中未使用的依赖项，这是响应式系统内存管理的关键机制
+ *
+ * 工作原理：
+ * 1. 从依赖链表尾部开始反向遍历（因为添加依赖时是从头部插入）
+ * 2. 检查每个依赖的版本号，-1 表示在本次执行中未被使用
+ * 3. 移除未使用的依赖，保留使用过的依赖
+ * 4. 重新构建依赖链表，更新头尾指针
+ * 5. 恢复依赖的活跃链接状态
+ *
+ * 这确保了：
+ * - 内存效率：移除不再需要的依赖关系
+ * - 性能优化：减少无效的响应式更新
+ * - 状态一致性：正确维护依赖图的完整性
+ *
+ * @param sub 需要清理依赖的订阅者（ReactiveEffect 或 ComputedRefImpl）
+ */
 function cleanupDeps(sub: Subscriber) {
-  // Cleanup unsued deps
+  // 清理未使用的依赖项
   let head
+  // 从依赖链表的尾部开始处理
   let tail = sub.depsTail
   let link = tail
+
+  // 反向遍历依赖链表（从尾部到头部）
+  // 反向遍历的原因：新的依赖通常从头部添加，尾部的依赖可能更容易被废弃
   while (link) {
     const prev = link.prevDep
+
+    // 检查依赖是否在本次执行中被使用
+    // version === -1 表示该依赖在 prepareDeps 后未被访问，即未使用
     if (link.version === -1) {
+      // 如果当前链接是尾节点，更新尾指针
       if (link === tail) tail = prev
-      // unused - remove it from the dep's subscribing effect list
+
+      // 从依赖的订阅者列表中移除此订阅者
+      // 这会断开 Dep -> Subscriber 的反向引用
       removeSub(link)
-      // also remove it from this effect's dep list
+
+      // 从当前订阅者的依赖列表中移除此依赖
+      // 这会断开 Subscriber -> Dep 的正向引用
       removeDep(link)
     } else {
-      // The new head is the last node seen which wasn't removed
-      // from the doubly-linked list
+      // 该依赖被使用过（version 已在 track 时更新）
+      // 将其设为新的头节点（因为我们是反向遍历）
+      // 最后一个未被移除的节点将成为新的头节点
       head = link
     }
 
-    // restore previous active link if any
+    // 恢复依赖的前一个活跃链接状态
+    // 这对于处理嵌套 effect 或 computed 的执行上下文非常重要
     link.dep.activeLink = link.prevActiveLink
+    // 清理临时存储的前一个活跃链接引用
     link.prevActiveLink = undefined
+
+    // 继续处理前一个依赖
     link = prev
   }
-  // set the new head & tail
+
+  // 更新订阅者的依赖链表头尾指针
+  // 经过清理后，只保留在本次执行中实际使用的依赖
   sub.deps = head
   sub.depsTail = tail
 }
@@ -617,42 +788,91 @@ export function refreshComputed(computed: ComputedRefImpl): undefined {
   }
 }
 
+/**
+ * 从依赖的订阅者链表中移除指定的订阅者链接
+ * 这是响应式系统中断开依赖关系的核心函数，确保内存的正确释放
+ *
+ * 主要功能：
+ * 1. 维护双向链表结构的完整性（更新前后节点的指针）
+ * 2. 处理特殊情况（头节点、尾节点的更新）
+ * 3. 处理计算属性的级联清理（当计算属性失去所有订阅者时）
+ * 4. 自动清理无用的依赖映射（避免内存泄漏）
+ *
+ * 设计特点：
+ * - 支持软删除模式（不减少订阅者计数，用于计算属性的递归清理）
+ * - 自动垃圾回收机制（当依赖无订阅者时自动从映射表删除）
+ * - 级联清理计算属性依赖（防止计算属性相关的内存泄漏）
+ *
+ * @param link 要移除的订阅者链接（包含dep、prevSub、nextSub等信息）
+ * @param soft 软删除模式，true时不减少dep.sc计数（用于计算属性的递归清理）
+ */
 function removeSub(link: Link, soft = false) {
+  // 解构获取链接相关的节点信息
   const { dep, prevSub, nextSub } = link
+
+  // 处理前一个订阅者节点的连接
   if (prevSub) {
+    // 将前一个节点的 nextSub 指向当前节点的下一个节点
+    // 这样就跳过了当前要删除的节点
     prevSub.nextSub = nextSub
+    // 清理当前节点对前一个节点的引用，防止内存泄漏
     link.prevSub = undefined
   }
+
+  // 处理下一个订阅者节点的连接
   if (nextSub) {
+    // 将下一个节点的 prevSub 指向当前节点的前一个节点
     nextSub.prevSub = prevSub
+    // 清理当前节点对下一个节点的引用，防止内存泄漏
     link.nextSub = undefined
   }
+
+  // 开发模式：处理依赖的头节点指针更新
   if (__DEV__ && dep.subsHead === link) {
-    // was previous head, point new head to next
+    // 如果要删除的是头节点，将头指针指向下一个节点
+    // subsHead 主要用于开发模式下的调试支持
     dep.subsHead = nextSub
   }
 
+  // 处理依赖的尾节点指针更新
   if (dep.subs === link) {
-    // was previous tail, point new tail to prev
+    // 如果要删除的是尾节点，将尾指针指向前一个节点
+    // dep.subs 始终指向订阅者链表的尾部（最新添加的订阅者）
     dep.subs = prevSub
 
+    // 特殊处理：计算属性的级联清理机制
     if (!prevSub && dep.computed) {
-      // if computed, unsubscribe it from all its deps so this computed and its
-      // value can be GCed
+      // 如果删除尾节点后链表为空（!prevSub）且这是一个计算属性的依赖
+      // 需要执行计算属性的完整清理流程
+
+      // 停止计算属性的依赖跟踪，标记其不再活跃
+      // 这防止在清理过程中产生新的依赖关系
       dep.computed.flags &= ~EffectFlags.TRACKING
+
+      // 递归清理计算属性自身的所有依赖项
+      // 遍历计算属性依赖的其他响应式数据
       for (let l = dep.computed.deps; l; l = l.nextDep) {
-        // here we are only "soft" unsubscribing because the computed still keeps
-        // referencing the deps and the dep should not decrease its sub count
+        // 对每个依赖执行"软删除"
+        // soft=true 表示不减少依赖的订阅者计数
+        // 这是因为计算属性仍然保持对这些依赖的引用
+        // 只是标记这些依赖在当前上下文中不再活跃
         removeSub(l, true)
       }
     }
   }
 
+  // 处理依赖的自动清理机制
   if (!soft && !--dep.sc && dep.map) {
-    // #11979
-    // property dep no longer has effect subscribers, delete it
-    // this mostly is for the case where an object is kept in memory but only a
-    // subset of its properties is tracked at one time
+    // 只有在非软删除模式下才减少订阅者计数并检查是否需要清理
+    // !--dep.sc: 先减少计数，然后检查是否为0
+    // dep.map: 确保这是一个可以被清理的属性依赖
+
+    // #11979 性能优化：自动清理无订阅者的属性依赖
+    // 当一个属性依赖不再有任何订阅者时，从映射表中删除它
+    // 这主要针对以下场景：
+    // - 对象保留在内存中，但只有部分属性在某个时间点被跟踪
+    // - 避免废弃的依赖项占用内存空间
+    // - 保持依赖映射表的精简和高效
     dep.map.delete(dep.key)
   }
 }
