@@ -14,6 +14,10 @@
       <p>源码调试示例 - 体验响应式系统</p>
     </div>
     <div class="todo-input-section">
+      <div>
+        <input type="text" v-model="count" />
+        <button @click="increment">+1</button>
+      </div>
       <div class="todo-input-group">
         <input
           v-model="newTodo"
@@ -82,6 +86,19 @@ interface Todo {
 const newTodo = ref('')
 const todos = ref<Todo[]>([])
 const currentFilter = ref<'all' | 'active' | 'completed'>('all')
+
+const count = ref(0)
+const cpmputedCount = computed({
+  get() {
+    return count.value
+  },
+  set(newValue) {
+    count.value = newValue
+  },
+})
+const increment = () => {
+  cpmputedCount.value++
+}
 
 // // 筛选器配置
 const filters = [
