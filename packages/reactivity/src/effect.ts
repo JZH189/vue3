@@ -692,22 +692,55 @@ function cleanupDeps(sub: Subscriber) {
   sub.depsTail = tail
 }
 
+/**
+ * 检查订阅者是否需要重新执行（脏状态检查）
+ *
+ * 这是 Vue 3 响应式系统中的核心优化机制，通过版本对比高效判断
+ * 订阅者的依赖是否发生了变化，从而决定是否需要重新执行
+ *
+ * 应用场景：
+ * 1. 计算属性的懒求值机制：只有在依赖变化时才重新计算
+ * 2. ReactiveEffect 的条件执行：避免不必要的副作用执行
+ * 3. SSR 环境下的性能优化：减少无意义的重新渲染
+ *
+ * 性能优化原理：
+ * - 版本比较：使用数值比较而非深度对比，时间复杂度 O(n)
+ * - 懒计算：计算属性依赖只在需要时才重新求值
+ * - 短路原理：发现第一个变化的依赖即立即返回 true
+ *
+ * @param sub 需要检查的订阅者（ReactiveEffect 或 ComputedRefImpl）
+ * @returns true 表示订阅者需要重新执行；false 表示可以使用缓存结果
+ */
 function isDirty(sub: Subscriber): boolean {
+  // 遍历订阅者的所有依赖项，检查是否有任何依赖发生了变化
   for (let link = sub.deps; link; link = link.nextDep) {
+    // 检查依赖的版本号是否与链接中记录的版本号不同
+    // 版本号不同表示此依赖在上次收集后发生了变化
     if (
       link.dep.version !== link.version ||
+      // 特殊处理：如果依赖是计算属性，需要递归检查
       (link.dep.computed &&
+        // 尝试刷新计算属性（可能会触发其重新计算）
+        // 或者刷新后版本号仍然不同（计算属性本身的依赖发生了变化）
         (refreshComputed(link.dep.computed) ||
           link.dep.version !== link.version))
     ) {
+      // 发现任何一个依赖变化，立即返回 true（短路原理）
       return true
     }
   }
+
+  // 向后兼容性检查：支持手动设置 _dirty 标志的三方库
+  // 例如 Pinia 的测试模块等历史遗留的 API 使用方式
   // @ts-expect-error only for backwards compatibility where libs manually set
   // this flag - e.g. Pinia's testing module
   if (sub._dirty) {
+    // 如果手动设置了 _dirty 标志，也认为需要重新执行
     return true
   }
+
+  // 所有依赖都没有变化，且没有手动设置脚脏标志
+  // 订阅者不需要重新执行，可以使用缓存结果
   return false
 }
 
