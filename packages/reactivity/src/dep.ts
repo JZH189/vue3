@@ -184,12 +184,13 @@ export class Dep {
     let link = this.activeLink
     if (link === undefined || link.sub !== activeSub) {
       link = this.activeLink = new Link(activeSub, this)
-
       // add the link to the activeEffect as a dep (as tail)
       // 将Link添加到订阅者的依赖链表
       if (!activeSub.deps) {
+        //如果不存在头节点，则创建一个头节点和尾节点
         activeSub.deps = activeSub.depsTail = link
       } else {
+        //如果存在头节点，将Link设置为尾节点（LRU策略）
         link.prevDep = activeSub.depsTail
         activeSub.depsTail!.nextDep = link
         activeSub.depsTail = link
@@ -386,10 +387,10 @@ function addSub(link: Link) {
    */
 }
 
-// 存储{target->键 -> dep}连接的主要弱图。
 // 从概念上讲，将依赖性视为维护一组订阅者的DEP类更容易，但是我们只是将它们存储为原始地图即可减少内存开销。
 type KeyToDepMap = Map<any, Dep>
 
+// 存储{target->键 -> dep}连接的主要映射表。
 export const targetMap: WeakMap<object, KeyToDepMap> = new WeakMap()
 
 export const ITERATE_KEY: unique symbol = Symbol(
