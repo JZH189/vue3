@@ -19,21 +19,13 @@ import {
 export let globalVersion = 0
 
 /**
- * Represents a link between a source (Dep) and a subscriber (Effect or Computed).
- * Deps and subs have a many-to-many relationship - each link between a
- * dep and a sub is represented by a Link instance.
+ * 表示源（DEP）和订阅者（​​effect或computed）之间的联系。
+ * DEPS和SUBS具有多一关系 - DEP和SUB之间的每个链接均由链接实例表示。
  *
- * A Link is also a node in two doubly-linked lists - one for the associated
- * sub to track all its deps, and one for the associated dep to track all its
- * subs.
- * @internal
+ * 一个链接也是两个双关联列表中的节点 -一个用于跟踪其所有深度的链接，一个用于跟踪相关的DEP以跟踪其所有subs。
  */
 export class Link {
   /**
-   * - Before each effect run, all previous dep links' version are reset to -1
-   * - During the run, a link's version is synced with the source dep on access
-   * - After the run, links with version -1 (that were never used) are cleaned
-   *   up
    * 在每个效果运行之前，所有先前的DEP链接的版本都重置为-1
    *  -在运行期间，链接的版本与访问的源dep同步
    *  -运行后，清洁了与版本-1（从未使用过的）链接
@@ -41,7 +33,7 @@ export class Link {
   version: number
 
   /**
-   * Pointers for doubly-linked lists
+   * 双连接列表的指针
    */
   nextDep?: Link //指向下一个依赖
   prevDep?: Link //指向上一个依赖
@@ -395,7 +387,7 @@ function addSub(link: Link) {
 }
 
 // 存储{target->键 -> dep}连接的主要弱图。
-// 从概念上讲，将依赖性视为维护一组订户的DEP类更容易，但是我们只是将它们存储为原始地图即可减少内存开销。
+// 从概念上讲，将依赖性视为维护一组订阅者的DEP类更容易，但是我们只是将它们存储为原始地图即可减少内存开销。
 type KeyToDepMap = Map<any, Dep>
 
 export const targetMap: WeakMap<object, KeyToDepMap> = new WeakMap()
