@@ -16,6 +16,7 @@
     <div class="todo-input-section">
       <div>
         <input type="text" v-model="count" />
+        <div>缓存的计算值：{{ cpmputedCount }}</div>
         <button @click="increment">+1</button>
       </div>
       <div class="todo-input-group">
