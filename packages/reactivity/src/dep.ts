@@ -142,7 +142,7 @@ export class Dep {
   }
 
   /**
-   *设计优势
+   * 设计目的
    * 智能复用: 避免重复创建Link对象
    * LRU优化: 将最近使用的依赖移到链表尾部
    * 版本同步: 确保Link版本与Dep版本一致
@@ -184,7 +184,6 @@ export class Dep {
     let link = this.activeLink
     if (link === undefined || link.sub !== activeSub) {
       link = this.activeLink = new Link(activeSub, this)
-      // add the link to the activeEffect as a dep (as tail)
       // 将Link添加到订阅者的依赖链表
       if (!activeSub.deps) {
         //如果不存在头节点，则创建一个头节点和尾节点
@@ -199,13 +198,9 @@ export class Dep {
       addSub(link)
     } else if (link.version === -1) {
       // 第二阶段：Link复用优化
-      // reused from last run - already a sub, just sync version
       // 复用上次运行的Link
       link.version = this.version
 
-      // If this dep has a next, it means it's not at the tail - move it to the
-      // tail. This ensures the effect's dep list is in the order they are
-      // accessed during evaluation.
       // 将Link移动到链表尾部（LRU策略）
       if (link.nextDep) {
         // 从当前位置移除
@@ -220,7 +215,6 @@ export class Dep {
         activeSub.depsTail!.nextDep = link
         activeSub.depsTail = link
 
-        // this was the head - point to the new head
         // 更新头部指针
         if (activeSub.deps === link) {
           activeSub.deps = next

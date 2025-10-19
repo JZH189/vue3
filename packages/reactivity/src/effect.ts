@@ -239,6 +239,7 @@ export class ReactiveEffect<T = any>
   /**
    * 依赖链表的头节点
    * 用于跟踪当前副作用依赖的所有响应式数据
+   * 该属性值初始化是在 dep.ts 文件中的 track 方法中activeSub.deps = activeSub.depsTail = link
    * @internal
    */
   deps?: Link = undefined
@@ -246,6 +247,7 @@ export class ReactiveEffect<T = any>
   /**
    * 依赖链表的尾节点
    * 便于在链表末尾快速添加新的依赖
+   * * 该属性值初始化是在 dep.ts 文件中的 track 方法中activeSub.deps = activeSub.depsTail = link
    * @internal
    */
   depsTail?: Link = undefined
