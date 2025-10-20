@@ -124,6 +124,7 @@ export function watch(
 ): WatchHandle {
   const { immediate, deep, once, scheduler, augmentJob, call } = options
 
+  // 警告无效的监听源的函数
   const warnInvalidSource = (s: unknown) => {
     ;(options.onWarn || warn)(
       `Invalid watch source: `,
@@ -133,13 +134,14 @@ export function watch(
     )
   }
 
+  // 处理响应式对象的 getter 函数
   const reactiveGetter = (source: object) => {
-    // traverse will happen in wrapped getter below
+    // 如果设置了 deep，则直接返回源对象，在包装后的 getter 中进行遍历
     if (deep) return source
-    // for `deep: false | 0` or shallow reactive, only traverse root-level properties
+    // 对于 `deep: false | 0` 或浅层响应式对象，只遍历根级属性
     if (isShallow(source) || deep === false || deep === 0)
       return traverse(source, 1)
-    // for `deep: undefined` on a reactive object, deeply traverse all properties
+    // 对于响应式对象上的 `deep: undefined`，深度遍历所有属性
     return traverse(source)
   }
 
@@ -150,36 +152,49 @@ export function watch(
   let forceTrigger = false
   let isMultiSource = false
 
+  // 根据不同的 source 类型设置相应的 getter 和配置
   if (isRef(source)) {
+    // 如果 source 是一个 ref，则 getter 返回其 value
     getter = () => source.value
+    // 如果是浅层 ref，则强制触发更新
     forceTrigger = isShallow(source)
   } else if (isReactive(source)) {
+    // 如果 source 是响应式对象，则使用 reactiveGetter
     getter = () => reactiveGetter(source)
+    // 响应式对象需要强制触发更新
     forceTrigger = true
   } else if (isArray(source)) {
+    // 如果 source 是数组，则是多个监听源
     isMultiSource = true
+    // 检查是否有响应式或浅层对象来决定是否强制触发
     forceTrigger = source.some(s => isReactive(s) || isShallow(s))
     getter = () =>
       source.map(s => {
         if (isRef(s)) {
+          // ref 类型返回其 value
           return s.value
         } else if (isReactive(s)) {
+          // 响应式对象使用 reactiveGetter
           return reactiveGetter(s)
         } else if (isFunction(s)) {
+          // 函数类型则执行函数
           return call ? call(s, WatchErrorCodes.WATCH_GETTER) : s()
         } else {
+          // 其他类型发出警告
           __DEV__ && warnInvalidSource(s)
         }
       })
   } else if (isFunction(source)) {
+    // 如果 source 是函数
     if (cb) {
-      // getter with cb
+      // 有回调函数的情况：getter 就是这个函数
       getter = call
         ? () => call(source, WatchErrorCodes.WATCH_GETTER)
         : (source as () => any)
     } else {
-      // no cb -> simple effect
+      // 没有回调函数的情况：简单 effect
       getter = () => {
+        // 如果存在清理函数，则先执行清理
         if (cleanup) {
           pauseTracking()
           try {
@@ -188,29 +203,36 @@ export function watch(
             resetTracking()
           }
         }
+        // 设置当前活跃的 watcher
         const currentEffect = activeWatcher
         activeWatcher = effect
         try {
+          // 执行 source 函数并传入清理函数
           return call
             ? call(source, WatchErrorCodes.WATCH_CALLBACK, [boundCleanup])
             : source(boundCleanup)
         } finally {
+          // 恢复之前的活跃 watcher
           activeWatcher = currentEffect
         }
       }
     }
   } else {
+    // 无效的 source 类型
     getter = NOOP
     __DEV__ && warnInvalidSource(source)
   }
 
+  // 如果有回调函数且设置了 deep，则需要深度遍历
   if (cb && deep) {
     const baseGetter = getter
     const depth = deep === true ? Infinity : deep
     getter = () => traverse(baseGetter(), depth)
   }
 
+  // 获取当前作用域
   const scope = getCurrentScope()
+  // 创建停止监听的句柄函数
   const watchHandle: WatchHandle = () => {
     effect.stop()
     if (scope && scope.active) {
@@ -218,6 +240,7 @@ export function watch(
     }
   }
 
+  // 如果设置了 once 且有回调函数，则包装回调函数以便只执行一次
   if (once && cb) {
     const _cb = cb
     cb = (...args) => {
@@ -226,11 +249,14 @@ export function watch(
     }
   }
 
+  // 初始化旧值
   let oldValue: any = isMultiSource
     ? new Array((source as []).length).fill(INITIAL_WATCHER_VALUE)
     : INITIAL_WATCHER_VALUE
 
+  // 定义实际执行的任务函数
   const job = (immediateFirstRun?: boolean) => {
+    // 如果 effect 不活跃或者没有变化且不是立即执行，则直接返回
     if (
       !(effect.flags & EffectFlags.ACTIVE) ||
       (!effect.dirty && !immediateFirstRun)
@@ -238,8 +264,9 @@ export function watch(
       return
     }
     if (cb) {
-      // watch(source, cb)
+      // 有回调函数的情况：watch(source, cb)
       const newValue = effect.run()
+      // 检查值是否发生变化
       if (
         deep ||
         forceTrigger ||
@@ -247,16 +274,18 @@ export function watch(
           ? (newValue as any[]).some((v, i) => hasChanged(v, oldValue[i]))
           : hasChanged(newValue, oldValue))
       ) {
-        // cleanup before running cb again
+        // 在重新运行回调之前执行清理
         if (cleanup) {
           cleanup()
         }
+        // 设置当前活跃的 watcher
         const currentWatcher = activeWatcher
         activeWatcher = effect
         try {
+          // 准备回调函数参数
           const args = [
             newValue,
-            // pass undefined as the old value when it's changed for the first time
+            // 当第一次改变时，旧值传入 undefined
             oldValue === INITIAL_WATCHER_VALUE
               ? undefined
               : isMultiSource && oldValue[0] === INITIAL_WATCHER_VALUE
@@ -264,33 +293,41 @@ export function watch(
                 : oldValue,
             boundCleanup,
           ]
+          // 更新旧值
           oldValue = newValue
+          // 执行回调函数
           call
             ? call(cb!, WatchErrorCodes.WATCH_CALLBACK, args)
             : // @ts-expect-error
               cb!(...args)
         } finally {
+          // 恢复之前的活跃 watcher
           activeWatcher = currentWatcher
         }
       }
     } else {
-      // watchEffect
+      // 没有回调函数的情况：watchEffect，直接运行 effect
       effect.run()
     }
   }
 
+  // 如果提供了 augmentJob 选项，则增强 job 函数
   if (augmentJob) {
     augmentJob(job)
   }
 
+  // 创建响应式 effect
   effect = new ReactiveEffect(getter)
 
+  // 设置调度器
   effect.scheduler = scheduler
     ? () => scheduler(job, false)
     : (job as EffectScheduler)
 
+  // 绑定清理函数到特定的 effect
   boundCleanup = fn => onWatcherCleanup(fn, false, effect)
 
+  // 设置 effect 的停止回调
   cleanup = effect.onStop = () => {
     const cleanups = cleanupMap.get(effect)
     if (cleanups) {
@@ -303,24 +340,31 @@ export function watch(
     }
   }
 
+  // 开发环境下设置跟踪和触发的回调
   if (__DEV__) {
     effect.onTrack = options.onTrack
     effect.onTrigger = options.onTrigger
   }
 
-  // initial run
+  // 初始运行
   if (cb) {
+    // 有回调函数的情况
     if (immediate) {
+      // 如果设置了 immediate，则立即执行任务
       job(true)
     } else {
+      // 否则运行 effect 获取初始值
       oldValue = effect.run()
     }
   } else if (scheduler) {
+    // 没有回调函数但有调度器的情况
     scheduler(job.bind(null, true), true)
   } else {
+    // 默认情况直接运行 effect
     effect.run()
   }
 
+  // 为 watchHandle 添加暂停、恢复和停止方法
   watchHandle.pause = effect.pause.bind(effect)
   watchHandle.resume = effect.resume.bind(effect)
   watchHandle.stop = watchHandle
