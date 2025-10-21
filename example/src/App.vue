@@ -101,6 +101,10 @@ const increment = () => {
   cpmputedCount.value++
 }
 
+watch(count, (newValue, oldValue) => {
+  console.log('ceshi ', newValue, oldValue)
+})
+
 // // 筛选器配置
 const filters = [
   { key: 'all' as const, label: '全部' },
