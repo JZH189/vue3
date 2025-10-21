@@ -90,15 +90,51 @@ export function getCurrentWatcher(): ReactiveEffect<any> | undefined {
 }
 
 /**
- * Registers a cleanup callback on the current active effect. This
- * registered cleanup callback will be invoked right before the
- * associated effect re-runs.
+ * 为当前活跃的 watcher 注册清理回调函数
+ * 注册的清理回调函数会在相关的副作用重新运行之前被调用
  *
- * @param cleanupFn - The callback function to attach to the effect's cleanup.
- * @param failSilently - if `true`, will not throw warning when called without
- * an active effect.
- * @param owner - The effect that this cleanup function should be attached to.
- * By default, the current active effect.
+ * 该函数主要用于 watch 和 watchEffect 中，允许用户在副作用重新执行前
+ * 清理之前创建的资源，如定时器、网络请求、事件监听器等。
+ *
+ * @param cleanupFn - 要附加到副作用清理中的回调函数
+ * @param failSilently - 如果为 true，在没有活跃副作用时不会抛出警告
+ * @param owner - 此清理函数应该附加到的副作用。默认为当前活跃的副作用。
+ *
+ * @example
+ * ```javascript
+ * // 在 watchEffect 中使用
+ * watchEffect((onCleanup) => {
+ *   const timer = setInterval(() => {
+ *     console.log('定时器执行')
+ *   }, 1000)
+ *
+ *   // 注册清理函数，在 watchEffect 重新执行或停止时清理定时器
+ *   onCleanup(() => {
+ *     clearInterval(timer)
+ *   })
+ * })
+ *
+ * // 在 watch 中使用
+ * watch(source, (newVal, oldVal, onCleanup) => {
+ *   const controller = new AbortController()
+ *
+ *   fetch('/api/data', { signal: controller.signal })
+ *     .then(response => response.json())
+ *     .then(data => console.log(data))
+ *
+ *   // 注册清理函数，取消未完成的请求
+ *   onCleanup(() => {
+ *     controller.abort()
+ *   })
+ * })
+ * ```
+ *
+ * 使用场景：
+ * 1. 清理定时器（setTimeout, setInterval）
+ * 2. 取消网络请求（fetch, XMLHttpRequest）
+ * 3. 解绑事件监听器（addEventListener）
+ * 4. 关闭 WebSocket 连接
+ * 5. 清理其他副作用资源
  */
 export function onWatcherCleanup(
   cleanupFn: () => void,

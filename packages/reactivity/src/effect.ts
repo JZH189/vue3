@@ -992,16 +992,35 @@ export function resetTracking(): void {
 }
 
 /**
- * Registers a cleanup function for the current active effect.
- * The cleanup function is called right before the next effect run, or when the
- * effect is stopped.
+ * 为当前活跃的副作用注册清理函数
+ * 清理函数会在下一次副作用执行前或副作用停止时被调用
  *
- * Throws a warning if there is no current active effect. The warning can be
- * suppressed by passing `true` to the second argument.
+ * 如果当前没有活跃的副作用，会抛出警告信息。
+ * 可以通过将第二个参数设置为 true 来静默处理这种情况。
  *
- * @param fn - the cleanup function to be registered
- * @param failSilently - if `true`, will not throw warning when called without
- * an active effect.
+ * @param fn - 要注册的清理函数
+ * @param failSilently - 如果为 true，在没有活跃副作用时不会抛出警告
+ *
+ * @example
+ * ```javascript
+ * watchEffect((onCleanup) => {
+ *   const timer = setInterval(() => {
+ *     console.log('定时器执行')
+ *   }, 1000)
+ *
+ *   // 注册清理函数，在 watchEffect 重新执行或停止时清理定时器
+ *   onCleanup(() => {
+ *     clearInterval(timer)
+ *   })
+ * })
+ * ```
+ *
+ * 使用场景：
+ * 1. 清理定时器（setTimeout, setInterval）
+ * 2. 取消网络请求
+ * 3. 解绑事件监听器
+ * 4. 关闭 WebSocket 连接
+ * 5. 清理其他副作用资源
  */
 export function onEffectCleanup(fn: () => void, failSilently = false): void {
   if (activeSub instanceof ReactiveEffect) {
@@ -1017,7 +1036,18 @@ export function onEffectCleanup(fn: () => void, failSilently = false): void {
 /**
  * 清理副作用函数，用于在副作用失效或重新执行前进行清理工作
  *
+ * 该函数的主要职责：
+ * 1. 执行用户定义的清理逻辑（如清理定时器、取消请求等）
+ * 2. 确保清理过程中不会意外触发新的依赖收集
+ * 3. 维护副作用执行环境的正确性
+ *
  * @param e - 需要清理的响应式副作用对象
+ *
+ * 执行流程：
+ * 1. 获取并清空副作用的清理函数引用
+ * 2. 暂时清空活跃订阅者，避免清理过程中触发依赖收集
+ * 3. 执行清理函数
+ * 4. 恢复之前的活跃订阅者状态
  */
 function cleanupEffect(e: ReactiveEffect) {
   // 获取副作用的清理函数
