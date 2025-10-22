@@ -101,8 +101,12 @@ const increment = () => {
   cpmputedCount.value++
 }
 
-watch(count, (newValue, oldValue) => {
-  console.log('ceshi ', newValue, oldValue)
+// watch(count, (newValue, oldValue) => {
+//   console.log('ceshi ', newValue, oldValue)
+// })
+
+watchEffect(() => {
+  console.log('count', count.value)
 })
 
 // // 筛选器配置
