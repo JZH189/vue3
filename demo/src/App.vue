@@ -26,15 +26,17 @@
 
 <script setup lang="ts">
 import { ref, computed } from 'vue'
-import ReactiveDemo from './components/ReactiveDemo.vue'
+import ReactiveOnlyDemo from './components/ReactiveOnlyDemo.vue'
+import RefDemo from './components/RefDemo.vue'
 import EffectDemo from './components/EffectDemo.vue'
 import ComputedDemo from './components/ComputedDemo.vue'
 import DependencyGraph from './components/DependencyGraph.vue'
 
-const activeTab = ref('reactive')
+const activeTab = ref('ref')
 
 const tabs = [
-  { key: 'reactive', label: '响应式对象', component: ReactiveDemo },
+  { key: 'ref', label: 'Ref演示', component: RefDemo },
+  { key: 'reactive', label: 'Reactive演示', component: ReactiveOnlyDemo },
   { key: 'effect', label: '副作用系统', component: EffectDemo },
   { key: 'computed', label: '计算属性', component: ComputedDemo },
   { key: 'graph', label: '依赖关系图', component: DependencyGraph },

@@ -1,149 +1,134 @@
 <template>
   <div class="reactive-demo">
-    <h2>🌟 响应式对象演示</h2>
+    <h2>🔄 Reactive 与 Ref 对比演示</h2>
     <p class="description">
-      通过Proxy机制，Vue 3可以拦截对象的所有操作，实现精确的响应式追踪
+      对比 Vue 3 中 reactive 和 ref 两种响应式 API 的使用方式和区别
     </p>
 
-    <div class="demo-grid">
-      <!-- 操作面板 -->
-      <div class="control-panel">
-        <h3>🎮 操作面板</h3>
+    <div class="demo-intro">
+      <div class="intro-card">
+        <h3>reative vs ref</h3>
+        <p>
+          <strong>reactive()</strong>
+          用于创建响应式对象，它返回一个原始对象的代理。
+          <strong>ref()</strong> 用于创建响应式的基本类型值，它返回一个包含
+          value 属性的对象。
+        </p>
+      </div>
+    </div>
 
-        <div class="control-group">
-          <label>修改姓名:</label>
-          <input
-            v-model="inputName"
-            @input="updateName"
-            placeholder="输入新姓名"
-          />
+    <div class="demo-comparison">
+      <!-- Reactive 示例 -->
+      <div class="comparison-panel">
+        <h3>🌀 Reactive 示例</h3>
+        <div class="code-example">
+          <pre><code>import { reactive } from 'vue'
+
+const state = reactive({
+  name: 'Vue开发者',
+  age: 25,
+  skills: ['JavaScript', 'Vue']
+})
+
+// 直接访问属性
+console.log(state.name)
+state.age = 26</code></pre>
         </div>
-
-        <div class="control-group">
-          <label>修改年龄:</label>
-          <input
-            type="number"
-            v-model.number="inputAge"
-            @input="updateAge"
-            placeholder="输入年龄"
-          />
-        </div>
-
-        <div class="control-group">
-          <button @click="addSkill" class="action-btn">添加技能</button>
-          <input
-            v-model="newSkill"
-            @keyup.enter="addSkill"
-            placeholder="输入技能名称"
-          />
-        </div>
-
-        <div class="control-group">
-          <button @click="resetData" class="reset-btn">重置数据</button>
+        <div class="explanation">
+          <ul>
+            <li>用于对象类型（Object, Array）</li>
+            <li>直接访问属性，无需 .value</li>
+            <li>解构会失去响应性</li>
+            <li>使用 Proxy 实现</li>
+          </ul>
         </div>
       </div>
 
-      <!-- 响应式对象状态 -->
-      <div class="state-panel">
-        <h3>📊 响应式对象状态</h3>
-        <div class="state-display">
-          <div class="state-item">
-            <span class="label">姓名:</span>
-            <span class="value">{{ reactiveUser.name }}</span>
-          </div>
-          <div class="state-item">
-            <span class="label">年龄:</span>
-            <span class="value">{{ reactiveUser.age }}</span>
-          </div>
-          <div class="state-item">
-            <span class="label">技能:</span>
-            <div class="skills-list">
-              <span
-                v-for="skill in reactiveUser.skills"
-                :key="skill"
-                class="skill-tag"
-              >
-                {{ skill }}
-              </span>
-            </div>
-          </div>
-        </div>
-      </div>
+      <!-- Ref 示例 -->
+      <div class="comparison-panel">
+        <h3>🎯 Ref 示例</h3>
+        <div class="code-example">
+          <pre><code>import { ref } from 'vue'
 
-      <!-- 代理拦截日志 -->
-      <div class="log-panel">
-        <h3>📝 Proxy拦截日志</h3>
-        <div class="log-controls">
-          <button @click="clearLogs" class="clear-btn">清空日志</button>
-          <label>
-            <input type="checkbox" v-model="autoScroll" />
-            自动滚动
-          </label>
+const name = ref('Vue开发者')
+const age = ref(25)
+const skills = ref(['JavaScript', 'Vue'])
+
+// 通过 .value 访问
+console.log(name.value)
+name.value = '新名字'</code></pre>
         </div>
-        <div class="log-container" ref="logContainer">
-          <div
-            v-for="log in logs"
-            :key="log.id"
-            :class="['log-entry', log.type]"
-          >
-            <span class="log-time">{{ log.time }}</span>
-            <span class="log-operation">{{ log.operation }}</span>
-            <span class="log-target">{{ log.target }}</span>
-            <span class="log-value">{{ log.value }}</span>
-          </div>
+        <div class="explanation">
+          <ul>
+            <li>用于基本类型和对象类型</li>
+            <li>需要通过 .value 访问值</li>
+            <li>解构不会失去响应性</li>
+            <li>使用 getter/setter 实现</li>
+          </ul>
         </div>
       </div>
     </div>
 
-    <!-- 原理说明 -->
-    <div class="explanation">
-      <h3>🔬 实现原理</h3>
-      <div class="principle-grid">
-        <div class="principle-item">
-          <h4>1. Proxy拦截</h4>
-          <p>Vue 3使用ES6 Proxy拦截对象的get、set、has、deleteProperty等操作</p>
-          <pre><code>new Proxy(target, {
-  get(target, key) {
-    track(target, key) // 依赖收集
-    return Reflect.get(target, key)
-  },
-  set(target, key, value) {
-    const result = Reflect.set(target, key, value)
-    trigger(target, key) // 触发更新
-    return result
-  }
-})</code></pre>
-        </div>
+    <!-- 详细说明 -->
+    <div class="detailed-explanation">
+      <h3>📋 详细对比</h3>
+      <table>
+        <thead>
+          <tr>
+            <th>特性</th>
+            <th>reactive</th>
+            <th>ref</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>适用类型</td>
+            <td>对象/数组</td>
+            <td>所有类型</td>
+          </tr>
+          <tr>
+            <td>访问方式</td>
+            <td>直接属性访问</td>
+            <td>通过 .value</td>
+          </tr>
+          <tr>
+            <td>解构</td>
+            <td>会失去响应性</td>
+            <td>保持响应性</td>
+          </tr>
+          <tr>
+            <td>实现原理</td>
+            <td>ES6 Proxy</td>
+            <td>getter/setter</td>
+          </tr>
+          <tr>
+            <td>使用场景</td>
+            <td>复杂数据结构</td>
+            <td>简单值或需要解构的场景</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
 
-        <div class="principle-item">
-          <h4>2. 依赖收集</h4>
-          <p>在get拦截器中收集当前活跃的effect，建立属性与effect的依赖关系</p>
-          <pre><code>function track(target, key) {
-  if (activeEffect) {
-    let depsMap = targetMap.get(target)
-    if (!depsMap) {
-      targetMap.set(target, depsMap = new Map())
-    }
-    let dep = depsMap.get(key)
-    if (!dep) {
-      depsMap.set(key, dep = new Set())
-    }
-    dep.add(activeEffect)
-  }
-}</code></pre>
+    <!-- 最佳实践 -->
+    <div class="best-practices">
+      <h3>🏆 最佳实践</h3>
+      <div class="practices-grid">
+        <div class="practice-item">
+          <h4>选择合适的 API</h4>
+          <p>对于对象和数组使用 reactive，对于基本类型使用 ref</p>
         </div>
-
-        <div class="principle-item">
-          <h4>3. 触发更新</h4>
-          <p>在set拦截器中触发与该属性相关的所有effect重新执行</p>
-          <pre><code>function trigger(target, key) {
-  const depsMap = targetMap.get(target)
-  if (!depsMap) return
-  const dep = depsMap.get(key)
-  if (dep) {
-    dep.forEach(effect => effect())
-  }
-}</code></pre>
+        <div class="practice-item">
+          <h4>组合使用</h4>
+          <p>在实际项目中，reactive 和 ref 经常组合使用</p>
+        </div>
+        <div class="practice-item">
+          <h4>避免解构陷阱</h4>
+          <p>reactive 对象解构会失去响应性，可以使用 toRefs 转换</p>
+        </div>
+        <div class="practice-item">
+          <h4>统一访问</h4>
+          <p>ref 也可以用于对象，保持访问方式的一致性</p>
         </div>
       </div>
     </div>
@@ -151,152 +136,7 @@
 </template>
 
 <script setup lang="ts">
-import { reactive, ref, nextTick, watch } from 'vue'
-
-// 响应式数据
-const reactiveUser = reactive({
-  name: 'Vue开发者',
-  age: 25,
-  skills: ['JavaScript', 'Vue.js', 'TypeScript'],
-})
-
-// 输入控制
-const inputName = ref(reactiveUser.name)
-const inputAge = ref(reactiveUser.age)
-const newSkill = ref('')
-const autoScroll = ref(true)
-
-// 日志系统
-interface LogEntry {
-  id: number
-  time: string
-  operation: string
-  target: string
-  value: string
-  type: 'get' | 'set' | 'has' | 'deleteProperty'
-}
-
-const logs = ref<LogEntry[]>([])
-const logContainer = ref<HTMLElement>()
-let logId = 0
-
-// 创建带日志的响应式对象
-function createLoggingProxy<T extends object>(target: T, name: string): T {
-  return new Proxy(target, {
-    get(obj, prop) {
-      const value = Reflect.get(obj, prop)
-      addLog('get', `${name}.${String(prop)}`, JSON.stringify(value), 'get')
-      return value
-    },
-
-    set(obj, prop, value) {
-      const result = Reflect.set(obj, prop, value)
-      addLog('set', `${name}.${String(prop)}`, JSON.stringify(value), 'set')
-      return result
-    },
-
-    has(obj, prop) {
-      const result = Reflect.has(obj, prop)
-      addLog('has', `${name}.${String(prop)}`, String(result), 'has')
-      return result
-    },
-
-    deleteProperty(obj, prop) {
-      const result = Reflect.deleteProperty(obj, prop)
-      addLog(
-        'deleteProperty',
-        `${name}.${String(prop)}`,
-        String(result),
-        'deleteProperty',
-      )
-      return result
-    },
-  })
-}
-
-// 添加日志
-function addLog(
-  operation: string,
-  target: string,
-  value: string,
-  type: LogEntry['type'],
-) {
-  logs.value.push({
-    id: logId++,
-    time: new Date().toLocaleTimeString(),
-    operation,
-    target,
-    value,
-    type,
-  })
-
-  if (autoScroll.value) {
-    nextTick(() => {
-      if (logContainer.value) {
-        logContainer.value.scrollTop = logContainer.value.scrollHeight
-      }
-    })
-  }
-}
-
-// 操作方法
-function updateName() {
-  reactiveUser.name = inputName.value
-}
-
-function updateAge() {
-  reactiveUser.age = inputAge.value
-}
-
-function addSkill() {
-  if (newSkill.value.trim()) {
-    reactiveUser.skills.push(newSkill.value.trim())
-    newSkill.value = ''
-  }
-}
-
-function resetData() {
-  reactiveUser.name = 'Vue开发者'
-  reactiveUser.age = 25
-  reactiveUser.skills.splice(
-    0,
-    reactiveUser.skills.length,
-    'JavaScript',
-    'Vue.js',
-    'TypeScript',
-  )
-  inputName.value = reactiveUser.name
-  inputAge.value = reactiveUser.age
-}
-
-function clearLogs() {
-  logs.value = []
-}
-
-// 监听响应式对象变化来模拟日志记录
-watch(
-  () => reactiveUser.name,
-  newVal => {
-    addLog('watch', 'reactiveUser.name', JSON.stringify(newVal), 'set')
-  },
-  { flush: 'sync' },
-)
-
-watch(
-  () => reactiveUser.age,
-  newVal => {
-    addLog('watch', 'reactiveUser.age', JSON.stringify(newVal), 'set')
-  },
-  { flush: 'sync' },
-)
-
-watch(
-  () => reactiveUser.skills,
-  newVal => {
-    addLog('watch', 'reactiveUser.skills', JSON.stringify(newVal), 'set')
-  },
-  { deep: true, flush: 'sync' },
-)
+// 此组件主要用于演示和对比，不需要实际的响应式数据
 </script>
 
 <style scoped>
@@ -309,242 +149,163 @@ watch(
   margin-bottom: 2rem;
   font-size: 1.1rem;
   line-height: 1.6;
+  text-align: center;
 }
 
-.demo-grid {
+.demo-intro {
+  margin-bottom: 2rem;
+  text-align: center;
+}
+
+.intro-card {
+  background: linear-gradient(135deg, #42b883 0%, #35495e 100%);
+  color: white;
+  padding: 2rem;
+  border-radius: 12px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+.intro-card h3 {
+  font-size: 1.5rem;
+  margin-bottom: 1rem;
+}
+
+.intro-card p {
+  font-size: 1.1rem;
+  line-height: 1.6;
+}
+
+.intro-card strong {
+  font-weight: 600;
+}
+
+.demo-comparison {
   display: grid;
-  grid-template-columns: 1fr 1fr 1fr;
-  gap: 1.5rem;
+  grid-template-columns: 1fr 1fr;
+  gap: 2rem;
   margin-bottom: 2rem;
 }
 
-.control-panel,
-.state-panel,
-.log-panel {
+.comparison-panel {
   background: white;
   border-radius: 12px;
   padding: 1.5rem;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
 }
 
-.control-panel h3,
-.state-panel h3,
-.log-panel h3 {
+.comparison-panel h3 {
   margin-bottom: 1rem;
   color: #333;
-  font-size: 1.2rem;
+  font-size: 1.3rem;
+  text-align: center;
 }
 
-.control-group {
+.code-example {
+  background: #1a1a1a;
+  color: #f0f0f0;
+  padding: 1rem;
+  border-radius: 8px;
   margin-bottom: 1rem;
-}
-
-.control-group label {
-  display: block;
-  margin-bottom: 0.5rem;
-  font-weight: 500;
-  color: #555;
-}
-
-.control-group input {
-  width: 100%;
-  padding: 0.5rem;
-  border: 1px solid #ddd;
-  border-radius: 6px;
-  font-size: 1rem;
-}
-
-.action-btn,
-.reset-btn,
-.clear-btn {
-  padding: 0.5rem 1rem;
-  border: none;
-  border-radius: 6px;
-  cursor: pointer;
+  font-family: 'Monaco', 'Consolas', monospace;
   font-size: 0.9rem;
-  font-weight: 500;
-  transition: all 0.3s ease;
+  overflow-x: auto;
 }
 
-.action-btn {
-  background: #42b883;
-  color: white;
-  margin-bottom: 0.5rem;
+.code-example code {
+  line-height: 1.4;
 }
 
-.action-btn:hover {
-  background: #369870;
-}
-
-.reset-btn {
-  background: #f39c12;
-  color: white;
-}
-
-.reset-btn:hover {
-  background: #e67e22;
-}
-
-.clear-btn {
-  background: #e74c3c;
-  color: white;
-  margin-right: 1rem;
-}
-
-.clear-btn:hover {
-  background: #c0392b;
-}
-
-.state-display {
+.explanation {
   background: #f8f9fa;
   padding: 1rem;
   border-radius: 8px;
 }
 
-.state-item {
-  margin-bottom: 0.8rem;
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
+.explanation ul {
+  padding-left: 1.5rem;
 }
 
-.state-item .label {
-  font-weight: 600;
-  color: #555;
-  min-width: 60px;
+.explanation li {
+  margin-bottom: 0.5rem;
+  line-height: 1.5;
 }
 
-.state-item .value {
-  color: #333;
-  font-family: 'Monaco', 'Consolas', monospace;
+.detailed-explanation {
   background: white;
-  padding: 0.25rem 0.5rem;
-  border-radius: 4px;
-  border: 1px solid #e0e0e0;
+  border-radius: 12px;
+  padding: 2rem;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  margin-bottom: 2rem;
 }
 
-.skills-list {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.5rem;
+.detailed-explanation h3 {
+  text-align: center;
+  margin-bottom: 1.5rem;
+  color: #333;
+  font-size: 1.4rem;
 }
 
-.skill-tag {
-  background: #42b883;
-  color: white;
-  padding: 0.25rem 0.5rem;
-  border-radius: 4px;
-  font-size: 0.8rem;
+.detailed-explanation table {
+  width: 100%;
+  border-collapse: collapse;
 }
 
-.log-controls {
-  display: flex;
-  align-items: center;
-  margin-bottom: 1rem;
-  gap: 1rem;
-}
-
-.log-container {
-  height: 300px;
-  overflow-y: auto;
-  background: #1a1a1a;
-  color: #f0f0f0;
+.detailed-explanation th,
+.detailed-explanation td {
   padding: 1rem;
-  border-radius: 8px;
-  font-family: 'Monaco', 'Consolas', monospace;
-  font-size: 0.8rem;
+  text-align: left;
+  border-bottom: 1px solid #eee;
 }
 
-.log-entry {
-  padding: 0.25rem 0;
-  border-bottom: 1px solid #333;
-  display: grid;
-  grid-template-columns: 80px 80px 1fr 1fr;
-  gap: 0.5rem;
+.detailed-explanation th {
+  background: #f8f9fa;
+  font-weight: 600;
+  color: #333;
 }
 
-.log-entry.get {
-  color: #4ade80;
+.detailed-explanation tr:last-child td {
+  border-bottom: none;
 }
 
-.log-entry.set {
-  color: #f59e0b;
-}
-
-.log-entry.has {
-  color: #06b6d4;
-}
-
-.log-entry.deleteProperty {
-  color: #ef4444;
-}
-
-.log-time {
-  color: #888;
-  font-size: 0.7rem;
-}
-
-.log-operation {
-  font-weight: bold;
-}
-
-.explanation {
+.best-practices {
   background: white;
   border-radius: 12px;
   padding: 2rem;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
 }
 
-.explanation h3 {
+.best-practices h3 {
+  text-align: center;
   margin-bottom: 1.5rem;
   color: #333;
-  font-size: 1.3rem;
+  font-size: 1.4rem;
 }
 
-.principle-grid {
+.practices-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
   gap: 1.5rem;
 }
 
-.principle-item {
+.practice-item {
   background: #f8f9fa;
   padding: 1.5rem;
   border-radius: 8px;
   border-left: 4px solid #42b883;
 }
 
-.principle-item h4 {
+.practice-item h4 {
   margin-bottom: 0.5rem;
   color: #333;
 }
 
-.principle-item p {
-  margin-bottom: 1rem;
+.practice-item p {
   color: #666;
   line-height: 1.5;
 }
 
-.principle-item pre {
-  background: #1a1a1a;
-  color: #f0f0f0;
-  padding: 1rem;
-  border-radius: 6px;
-  overflow-x: auto;
-  font-size: 0.8rem;
-  line-height: 1.4;
-}
-
-.principle-item code {
-  font-family: 'Monaco', 'Consolas', monospace;
-}
-
 @media (max-width: 1024px) {
-  .demo-grid {
-    grid-template-columns: 1fr;
-  }
-
-  .principle-grid {
+  .demo-comparison {
     grid-template-columns: 1fr;
   }
 }
