@@ -47,7 +47,7 @@ const currentComponent = computed(() => {
 
 <style scoped>
 .app {
-  max-width: 1200px;
+  padding: 0 50px;
   width: 100%;
   background: rgba(255, 255, 255, 0.95);
   border-radius: 20px;
