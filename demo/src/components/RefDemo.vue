@@ -5,135 +5,15 @@
       Ref 用于创建响应式的值引用，可以包装基本类型和对象类型
     </p>
 
-    <div class="demo-grid">
-      <!-- 操作面板 -->
-      <div class="control-panel">
-        <h3>🎮 操作面板</h3>
-
-        <div class="control-group">
-          <label>修改姓名:</label>
-          <input
-            v-model="inputName"
-            @input="updateName"
-            placeholder="输入新姓名"
-          />
-        </div>
-
-        <div class="control-group">
-          <label>修改年龄:</label>
-          <input
-            type="number"
-            v-model.number="inputAge"
-            @input="updateAge"
-            placeholder="输入年龄"
-          />
-        </div>
-
-        <div class="control-group">
-          <button @click="addSkill" class="action-btn">添加技能</button>
-          <input
-            v-model="newSkill"
-            @keyup.enter="addSkill"
-            placeholder="输入技能名称"
-          />
-        </div>
-
-        <div class="control-group">
-          <button @click="resetData" class="reset-btn">重置数据</button>
-        </div>
-      </div>
-
-      <!-- 代码示例 -->
-      <div class="source-code-panel">
-        <div class="source-code-header">
-          <h3>💻 代码示例</h3>
-        </div>
-        <div class="source-code-content">
-          <pre><code>// Ref 响应式数据
-const nameRef = ref('Vue开发者')
-const ageRef = ref(25)
-const skillsRef = ref(['JavaScript', 'Vue.js', 'TypeScript'])
-
-// 修改姓名
-function updateName() {
-  nameRef.value = inputName.value
-}
-
-// 修改年龄
-function updateAge() {
-  ageRef.value = inputAge.value
-}
-
-// 添加技能
-function addSkill() {
-  if (newSkill.value.trim()) {
-    skillsRef.value.push(newSkill.value.trim())
-    newSkill.value = ''
-  }
-}
-
-// 重置数据 
-function resetData() {
-  nameRef.value = 'Vue开发者'
-  ageRef.value = 25
-  skillsRef.value.splice(
-    0,
-    skillsRef.value.length,
-    'JavaScript',
-    'Vue.js',
-    'TypeScript',
-  )
-}</code></pre>
-        </div>
-      </div>
-
-      <!-- Ref状态 -->
-      <div class="state-panel">
-        <h3>📊 Ref 状态</h3>
-        <div class="state-display">
-          <div class="state-item">
-            <span class="label">姓名:</span>
-            <span class="value">{{ nameRef }}</span>
-          </div>
-          <div class="state-item">
-            <span class="label">年龄:</span>
-            <span class="value">{{ ageRef }}</span>
-          </div>
-          <div class="state-item">
-            <span class="label">技能:</span>
-            <div class="skills-list">
-              <span v-for="skill in skillsRef" :key="skill" class="skill-tag">
-                {{ skill }}
-              </span>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <!-- 代理拦截日志 -->
-      <div class="log-panel">
-        <h3>📝 Ref 访问日志</h3>
-        <div class="log-controls">
-          <button @click="clearLogs" class="clear-btn">清空日志</button>
-          <label>
-            <input type="checkbox" v-model="autoScroll" />
-            自动滚动
-          </label>
-        </div>
-        <div class="log-container" ref="logContainer">
-          <div
-            v-for="log in logs"
-            :key="log.id"
-            :class="['log-entry', log.type]"
-          >
-            <span class="log-time">{{ log.time }}</span>
-            <span class="log-operation">{{ log.operation }}</span>
-            <span class="log-target">{{ log.target }}</span>
-            <span class="log-value">{{ log.value }}</span>
-          </div>
-        </div>
-      </div>
-    </div>
+    <!-- 高级响应式系统流程可视化 -->
+    <AdvancedReactiveFlow
+      :ref-value="nameRef"
+      :dep-version="depVersion"
+      :dep-subs="depSubsCount"
+      :link-version="linkVersion"
+      :effect-flags="effectFlags"
+      :effect-deps="effectDepsCount"
+    />
 
     <!-- 原理说明 -->
     <div class="explanation">
@@ -224,7 +104,8 @@ function resetData() {
 </template>
 
 <script setup lang="ts">
-import { ref, nextTick } from 'vue'
+import { ref, nextTick, watchEffect, reactive } from 'vue'
+import AdvancedReactiveFlow from './AdvancedReactiveFlow.vue'
 
 // Ref 响应式数据
 const nameRef = ref('Vue开发者')
@@ -236,6 +117,13 @@ const inputName = ref(nameRef.value)
 const inputAge = ref(ageRef.value)
 const newSkill = ref('')
 const autoScroll = ref(true)
+
+// 可视化相关状态
+const depVersion = ref(0)
+const depSubsCount = ref(1)
+const linkVersion = ref(0)
+const effectFlags = ref('ACTIVE | TRACKING')
+const effectDepsCount = ref(1)
 
 // 日志系统
 interface LogEntry {
@@ -279,11 +167,13 @@ function addLog(
 // 操作方法
 function updateName() {
   nameRef.value = inputName.value
+  depVersion.value++ // 模拟版本更新
   addLog('set', 'nameRef.value', JSON.stringify(inputName.value), 'set')
 }
 
 function updateAge() {
   ageRef.value = inputAge.value
+  depVersion.value++ // 模拟版本更新
   addLog('set', 'ageRef.value', JSON.stringify(inputAge.value), 'set')
 }
 
@@ -291,6 +181,7 @@ function addSkill() {
   if (newSkill.value.trim()) {
     const skill = newSkill.value.trim()
     skillsRef.value.push(skill)
+    depVersion.value++ // 模拟版本更新
     addLog('set', 'skillsRef.value', `添加技能: ${skill}`, 'set')
     newSkill.value = ''
   }
@@ -306,6 +197,7 @@ function resetData() {
     'Vue.js',
     'TypeScript',
   )
+  depVersion.value++ // 模拟版本更新
   inputName.value = nameRef.value
   inputAge.value = ageRef.value
   addLog('set', 'refs', '重置所有数据', 'set')
@@ -314,6 +206,14 @@ function resetData() {
 function clearLogs() {
   logs.value = []
 }
+
+// 创建一个副作用来演示依赖收集
+watchEffect(() => {
+  // 访问响应式数据触发依赖收集
+  const name = nameRef.value
+  const age = ageRef.value
+  const skills = skillsRef.value
+})
 </script>
 
 <style scoped>
@@ -506,6 +406,7 @@ function clearLogs() {
   border-radius: 12px;
   padding: 2rem;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  margin-top: 2rem;
 }
 
 .explanation h3 {
