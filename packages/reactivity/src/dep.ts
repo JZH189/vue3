@@ -195,6 +195,7 @@ export class Dep {
         activeSub.depsTail = link
       }
 
+      // 执行 link.dep.subs = link 相当于 this.subs = link
       addSub(link)
     } else if (link.version === -1) {
       // 第二阶段：Link复用优化
