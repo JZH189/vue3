@@ -54,15 +54,17 @@ const nameRef = ref('Vue开发者')
 const ageRef = ref(25)
 const skillsRef = ref(['JavaScript', 'Vue.js', 'TypeScript'])
 
-// 操作方法
+// 修改姓名
 function updateName() {
   nameRef.value = inputName.value
 }
 
+// 修改年龄
 function updateAge() {
   ageRef.value = inputAge.value
 }
 
+// 添加技能
 function addSkill() {
   if (newSkill.value.trim()) {
     skillsRef.value.push(newSkill.value.trim())
@@ -70,6 +72,7 @@ function addSkill() {
   }
 }
 
+// 重置数据 
 function resetData() {
   nameRef.value = 'Vue开发者'
   ageRef.value = 25
