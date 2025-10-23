@@ -1,24 +1,10 @@
 <template>
-  <!-- <div style="font-size: 18px; width: 100%; text-align: center">
-    {{ count }}
-    <button
-      style="width: 100px; height: 40px; text-align: center; margin-left: 10px"
-      @click="count++"
-    >
-      +1
-    </button>
-  </div> -->
   <div class="todo-container">
     <div class="todo-header">
       <h1>Vue 3 Todo List</h1>
       <p>源码调试示例 - 体验响应式系统</p>
     </div>
     <div class="todo-input-section">
-      <div>
-        <input type="text" v-model="count" />
-        <div>缓存的计算值：{{ cpmputedCount }}</div>
-        <button @click="increment">+1</button>
-      </div>
       <div class="todo-input-group">
         <input
           v-model="newTodo"
@@ -87,27 +73,6 @@ interface Todo {
 const newTodo = ref('')
 const todos = ref<Todo[]>([])
 const currentFilter = ref<'all' | 'active' | 'completed'>('all')
-
-const count = ref(0)
-const cpmputedCount = computed({
-  get() {
-    return count.value
-  },
-  set(newValue) {
-    count.value = newValue
-  },
-})
-const increment = () => {
-  cpmputedCount.value++
-}
-
-// watch(count, (newValue, oldValue) => {
-//   console.log('ceshi ', newValue, oldValue)
-// })
-
-watchEffect(() => {
-  console.log('count', count.value)
-})
 
 // // 筛选器配置
 const filters = [
